@@ -1,11 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { STATUSES, type Lot } from "@/lib/lots";
+import { StatusIcon } from "../../StatusIcon";
 
 // The job worker's page: one lot, four buttons, no login.
-export default function StatusPage() {
+// useParams() only has a value at request time, so Next needs it inside <Suspense>.
+export default function Page() {
+  return (
+    <Suspense fallback={<main><h1>KaamTrack</h1><p className="reading">Loading…</p></main>}>
+      <StatusPage />
+    </Suspense>
+  );
+}
+
+function StatusPage() {
   const { token } = useParams<{ token: string }>();
   const [lot, setLot] = useState<Lot | null>(null);
   const [error, setError] = useState("");
@@ -53,8 +63,10 @@ export default function StatusPage() {
       <p>Tap the current status of this lot:</p>
       <div className="status-buttons">
         {STATUSES.map((s) => (
-          <button key={s} className={`button big ${lot.status === s ? "primary" : ""}`} disabled={!!saving} onClick={() => tap(s)}>
-            {saving === s ? "Saving…" : s}
+          <button key={s} className={`button big s-btn s-${s.replace(/\s/g, "").toLowerCase()}`} aria-pressed={lot.status === s} disabled={!!saving} onClick={() => tap(s)}>
+            <StatusIcon status={s} size={28} />
+            <span>{saving === s ? "Saving…" : s}</span>
+            {lot.status === s && <span className="here">Now</span>}
           </button>
         ))}
       </div>

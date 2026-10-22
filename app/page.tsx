@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { missingFields, PROCESSES, UNITS, whatsappLink, type Lot, type LotForm } from "@/lib/lots";
+import { CameraIcon, StatusIcon } from "./StatusIcon";
 
 type BoardLot = Lot & { overdue: boolean; days_out: number };
 
@@ -126,8 +127,8 @@ export default function Home() {
       <section className="panel">
         <div className="row">
           <label className="button primary">
-            📷 Snap challan
-            <input type="file" accept="image/*" hidden onChange={(e) => onPhoto(e.target.files?.[0])} disabled={reading} />
+            <CameraIcon /> Snap challan
+            <input type="file" accept="image/*" className="sr-only" onChange={(e) => onPhoto(e.target.files?.[0])} disabled={reading} />
           </label>
           <button className="button" onClick={() => { setCard({ ...EMPTY }); setUnclear([]); setPhoto(null); setNotice(""); setSeconds(null); }}>
             Type lot instead
@@ -188,7 +189,9 @@ export default function Home() {
                   {l.process} · {l.quantity} {l.unit}
                 </span>
               </div>
-              <span className={`status s-${l.status.replace(/\s/g, "").toLowerCase()}`}>{l.status}</span>
+              <span className={`status s-${l.status.replace(/\s/g, "").toLowerCase()}`}>
+                <StatusIcon status={l.status} size={16} /> {l.status}
+              </span>
               <span className="muted small">
                 {l.days_out} day{l.days_out === 1 ? "" : "s"} out · promised {l.promised_date}
                 {l.overdue && <strong> · OVERDUE</strong>}
