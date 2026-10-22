@@ -8,26 +8,32 @@ export const FIRST_STATUS = "Sent";
 // What the lot card edits. Strings because they come from form inputs; "" means blank.
 export type LotForm = {
   job_worker: string;
+  phone: string;
   process: string;
   quantity: string;
   unit: string;
   promised_date: string;
 };
 
-// One row in the Google Sheet.
+// One lot as stored. `phone` is the job worker's WhatsApp number as 91XXXXXXXXXX.
 export type Lot = {
   token: string;
   created_at: string;
   job_worker: string;
+  phone: string;
   process: string;
   quantity: number;
   unit: string;
   promised_date: string;
   status: string;
   status_updated_at: string;
+  last_reminded_at: string;
 };
 
-export const REQUIRED: (keyof LotForm)[] = ["job_worker", "process", "quantity", "promised_date"];
+// A lot as the browser sees it: the phone number never leaves the server.
+export type PublicLot = Omit<Lot, "phone"> & { has_phone: boolean };
+
+export const REQUIRED: (keyof LotForm)[] = ["job_worker", "phone", "process", "quantity", "promised_date"];
 
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
@@ -36,6 +42,18 @@ export function isValidDate(s: string) {
   const d = new Date(s + "T00:00:00Z");
   return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
+
+// Indian mobile numbers only. Returns 91XXXXXXXXXX, or "" when the input isn't one.
+// ponytail: India only; swap in libphonenumber if job workers abroad ever matter.
+export function normalizePhone(raw: unknown): string {
+  let d = String(raw ?? "").replace(/\D/g, "");
+  if (d.length === 11 && d.startsWith("0")) d = d.slice(1);
+  if (d.length === 10) d = "91" + d;
+  return /^91[6-9]\d{9}$/.test(d) ? d : "";
+}
+
+// The 10 digits staff see and type; the stored form adds the 91.
+export const localPhone = (normalized: string) => normalized.slice(2);
 
 // Turn whatever the AI sent back into safe form values. Anything wrong becomes blank and unclear.
 export function cleanExtraction(raw: unknown) {
@@ -49,6 +67,7 @@ export function cleanExtraction(raw: unknown) {
 
   const form: LotForm = {
     job_worker: str(r.job_worker),
+    phone: localPhone(normalizePhone(r.job_worker_phone)),
     process: PROCESSES.includes(process) ? process : "",
     quantity: Number.isFinite(qty) && qty > 0 ? String(qty) : "",
     unit: UNITS.includes(unit) ? unit : "metres",
@@ -66,6 +85,7 @@ export function missingFields(f: LotForm): (keyof LotForm)[] {
     if (k === "quantity") return !(Number.isFinite(qty) && qty > 0);
     if (k === "promised_date") return !isValidDate(f.promised_date);
     if (k === "process") return !PROCESSES.includes(f.process);
+    if (k === "phone") return !normalizePhone(f.phone);
     return !f[k].trim();
   });
 }
@@ -82,12 +102,14 @@ export function newLot(f: LotForm, now = new Date()): Lot {
     token: makeToken(),
     created_at: at,
     job_worker: f.job_worker.trim(),
+    phone: normalizePhone(f.phone),
     process: f.process,
     quantity: Number(f.quantity),
     unit: UNITS.includes(f.unit) ? f.unit : "metres",
     promised_date: f.promised_date,
     status: FIRST_STATUS,
     status_updated_at: at,
+    last_reminded_at: "",
   };
 }
 
@@ -108,7 +130,7 @@ export function daysOut(lot: Pick<Lot, "created_at">, today: string) {
   return Math.max(0, Math.round(dayNumber(today) - dayNumber(sent)));
 }
 
-// Rows from the sheet can come back as strings; make them proper lots and drop junk rows.
+// Stored lots can be older than the current shape; fill gaps and drop junk rows.
 export function rowsToLots(rows: unknown): Lot[] {
   if (!Array.isArray(rows)) return [];
   return rows
@@ -119,19 +141,51 @@ export function rowsToLots(rows: unknown): Lot[] {
         token: String(l.token),
         created_at: String(l.created_at ?? ""),
         job_worker: String(l.job_worker ?? ""),
+        phone: normalizePhone(l.phone),
         process: String(l.process ?? ""),
         quantity: Number(l.quantity) || 0,
         unit: String(l.unit ?? ""),
         promised_date: String(l.promised_date ?? ""),
         status: String(l.status ?? FIRST_STATUS),
         status_updated_at: String(l.status_updated_at ?? ""),
+        last_reminded_at: String(l.last_reminded_at ?? ""),
       };
     });
 }
 
-export function whatsappLink(lot: Lot, origin: string) {
+export function publicLot(lot: Lot): PublicLot {
+  const { phone, ...rest } = lot;
+  return { ...rest, has_phone: !!phone };
+}
+
+export function whatsappLink(lot: Pick<Lot, "token" | "quantity" | "unit" | "process" | "promised_date">, origin: string) {
   const text =
-    `KaamTrack lot: ${lot.quantity} ${lot.unit}, ${lot.process}, promised ${lot.promised_date}.\n` +
+    `KaamTrack lot: ${lot.quantity} ${lot.unit}, ${lot.process}, promised ${showDate(lot.promised_date)}.\n` +
     `Please tap your status here (no login needed): ${origin}/s/${lot.token}`;
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
+}
+
+// ---- Reminders ----
+
+export const REMIND_COOLDOWN_MS = 60 * 60 * 1000;
+
+// The four values filled into the WhatsApp template, in order.
+export const reminderParams = (lot: Pick<Lot, "token" | "quantity" | "unit" | "process" | "promised_date">, origin: string) => [
+  lot.process,
+  `${lot.quantity} ${lot.unit}`,
+  showDate(lot.promised_date),
+  `${origin}/s/${lot.token}`,
+];
+
+// Minutes to wait before this lot may be reminded again (0 = go ahead). Stops anyone spamming a job worker.
+export function minutesUntilRemindable(lot: Pick<Lot, "last_reminded_at">, now = new Date()) {
+  if (!lot.last_reminded_at) return 0;
+  const wait = REMIND_COOLDOWN_MS - (now.getTime() - Date.parse(lot.last_reminded_at));
+  return wait > 0 ? Math.ceil(wait / 60_000) : 0;
+}
+
+// The daily job reminds a lot at most once per day, only if it has a number and is due today or late.
+export function dueForReminder(lot: Lot, today: string) {
+  const remindedToday = !!lot.last_reminded_at && todayIST(new Date(lot.last_reminded_at)) === today;
+  return !!lot.phone && lot.status !== "Dispatched" && isValidDate(lot.promised_date) && lot.promised_date <= today && !remindedToday;
 }

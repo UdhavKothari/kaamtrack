@@ -16,6 +16,15 @@ Phone browser ──► Next.js on Vercel
 - **The WhatsApp message** is a `wa.me` link with the text pre-filled. No WhatsApp Business API.
 - **Storage:** an earlier version saved lots to Google Sheets through n8n. That was replaced by Redis because the hosted n8n couldn't reach Google reliably. The old workflow is in git history.
 
+## WhatsApp reminders (Meta Cloud API, free test number)
+- Each lot needs the job worker's WhatsApp number (required on the lot card; read from the challan when written, and remembered per job worker name). The browser never receives the number.
+- **Remind now** on the board sends one reminder (one per hour per lot at most). A daily Vercel Cron (`vercel.json`, 03:30 UTC = 09:00 IST) reminds lots due today or overdue, once a day each.
+- Reminders are a WhatsApp **template** (business-started messages must be). Create this UTILITY template in WhatsApp Manager, name `lot_reminder`, language English:
+  `Reminder: your {{1}} lot of {{2}} is due on {{3}}. Please tap your current status here: {{4}} Thank you.`
+  Sample values: `dyeing`, `1200 metres`, `28/10/2026`, `https://kaamtrack-khaki.vercel.app/s/abc123`.
+- The Meta **test number** is free but can only message up to 5 phones you add and verify in Meta's API Setup page. Its templates can't be reused on a real number.
+- Costs: utility templates are free inside a 24-hour customer-service window (opened when the job worker messages the number first); outside it Meta bills per message. Check Meta's rate card.
+
 ## Run it
 1. Copy `.env.example` to `.env.local` and fill in the values. Never commit `.env.local`.
 2. Create the database: in Vercel, open your project → Storage → add **Upstash Redis**. Copy its REST URL and token into `.env.local`.

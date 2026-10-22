@@ -56,6 +56,7 @@ h2 { font-size: 1.15rem; margin: 28px 0 10px; }
 .field .row input { flex: 1; width: auto; }
 .field .row select { width: auto; }
 .field .row { flex-wrap: nowrap; }
+.field .prefix { min-height: 44px; display: inline-flex; align-items: center; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: #f0eee9; font-weight: 600; }
 .field.missing input, .field.missing select { border: 2px solid var(--red); background: var(--red-bg); }
 .tag { font-style: normal; font-size: 0.75rem; background: var(--amber-bg); color: var(--amber); padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
 .req { font-style: normal; font-size: 0.75rem; color: var(--red); margin-left: 6px; }

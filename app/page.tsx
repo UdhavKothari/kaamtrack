@@ -1,14 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { missingFields, PROCESSES, showDate, UNITS, whatsappLink, type Lot, type LotForm } from "@/lib/lots";
+import { missingFields, PROCESSES, showDate, UNITS, whatsappLink, type LotForm, type PublicLot } from "@/lib/lots";
 import { CameraIcon, StatusIcon } from "./StatusIcon";
 
-type BoardLot = Lot & { overdue: boolean; days_out: number };
+type BoardLot = PublicLot & { overdue: boolean; days_out: number };
 
-const EMPTY: LotForm = { job_worker: "", process: "", quantity: "", unit: "metres", promised_date: "" };
+const EMPTY: LotForm = { job_worker: "", phone: "", process: "", quantity: "", unit: "metres", promised_date: "" };
 const LABELS: Record<keyof LotForm, string> = {
   job_worker: "Job worker",
+  phone: "Job worker WhatsApp",
   process: "Process",
   quantity: "Quantity",
   unit: "Unit",
@@ -37,6 +38,38 @@ export default function Home() {
   const [lots, setLots] = useState<BoardLot[]>([]);
   const [boardError, setBoardError] = useState("");
   const [copied, setCopied] = useState("");
+  const [reminding, setReminding] = useState("");
+  const [remindNote, setRemindNote] = useState<{ token: string; text: string } | null>(null);
+
+  async function remind(token: string) {
+    setReminding(token);
+    setRemindNote(null);
+    try {
+      const res = await fetch(`/api/lots/${token}/remind`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setRemindNote({ token, text: "Reminder sent on WhatsApp ✓" });
+      loadLots();
+    } catch (e) {
+      setRemindNote({ token, text: e instanceof Error && e.message ? e.message : "Couldn't send the reminder." });
+    } finally {
+      setReminding("");
+    }
+  }
+
+  // Staff type a job worker's number once; after that it fills in when the name matches.
+  async function prefillPhone(name: string) {
+    if (!name.trim()) return;
+    try {
+      const res = await fetch(`/api/workers?name=${encodeURIComponent(name.trim())}`);
+      const { phone } = await res.json();
+      if (!phone) return;
+      setCard((c) => (c && !c.phone ? { ...c, phone } : c));
+      setUnclear((u) => u.filter((f) => f !== "phone"));
+    } catch {
+      // no remembered number; staff type it
+    }
+  }
 
   async function copyLink(token: string) {
     try {
@@ -89,6 +122,7 @@ export default function Home() {
       if (!res.ok) throw new Error(data.error);
       setCard(data.form);
       setUnclear(data.unclear);
+      if (!data.form.phone) prefillPhone(data.form.job_worker);
       setNotice(data.error ?? (data.isChallan ? "" : "This doesn't look like a challan. Check the photo, or type the details below."));
     } catch {
       setCard({ ...EMPTY });
@@ -154,7 +188,7 @@ export default function Home() {
             {photo && <img src={photo} alt="Challan photo" className="photo" />}
             <form className="card" onSubmit={(e) => { e.preventDefault(); save(); }}>
               {seconds !== null && <p className="muted small">Read in {seconds.toFixed(1)} s. Check every field before saving.</p>}
-              {(["job_worker", "process", "quantity", "promised_date"] as const).map((k) => (
+              {(["job_worker", "phone", "process", "quantity", "promised_date"] as const).map((k) => (
                 <label key={k} className={`field ${missing.includes(k) ? "missing" : ""}`}>
                   <span>
                     {LABELS[k]} {unclear.includes(k) && <em className="tag">unclear</em>}
@@ -172,8 +206,18 @@ export default function Home() {
                         {UNITS.map((u) => <option key={u}>{u}</option>)}
                       </select>
                     </div>
+                  ) : k === "phone" ? (
+                    <div className="row">
+                      <span className="prefix">+91</span>
+                      <input type="tel" inputMode="numeric" autoComplete="off" placeholder="98765 43210" value={card.phone} onChange={(e) => edit("phone", e.target.value)} />
+                    </div>
                   ) : (
-                    <input type={k === "promised_date" ? "date" : "text"} value={card[k]} onChange={(e) => edit(k, e.target.value)} />
+                    <input
+                      type={k === "promised_date" ? "date" : "text"}
+                      value={card[k]}
+                      onChange={(e) => edit(k, e.target.value)}
+                      onBlur={k === "job_worker" ? () => prefillPhone(card.job_worker) : undefined}
+                    />
                   )}
                 </label>
               ))}
@@ -214,7 +258,18 @@ export default function Home() {
                 <button className="button small" onClick={() => copyLink(l.token)} aria-live="polite">
                   {copied === l.token ? "Copied ✓" : "Copy link"}
                 </button>
+                {l.has_phone && l.status !== "Dispatched" && (
+                  <button className="button small" onClick={() => remind(l.token)} disabled={reminding === l.token}>
+                    {reminding === l.token ? "Sending…" : "Remind now"}
+                  </button>
+                )}
               </div>
+              {l.last_reminded_at && (
+                <span className="muted small">
+                  Last reminder {new Date(l.last_reminded_at).toLocaleString("en-IN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}
+                </span>
+              )}
+              {remindNote?.token === l.token && <span className="small" role="status">{remindNote.text}</span>}
             </li>
           ))}
         </ul>

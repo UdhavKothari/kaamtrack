@@ -1,11 +1,11 @@
 import { getLot, setStatus } from "@/lib/store";
-import { STATUSES } from "@/lib/lots";
+import { publicLot, STATUSES } from "@/lib/lots";
 
 export async function GET(_req: Request, ctx: RouteContext<"/api/lots/[token]">) {
   const { token } = await ctx.params;
   try {
     const lot = await getLot(token);
-    return lot ? Response.json(lot) : Response.json({ error: "Lot not found" }, { status: 404 });
+    return lot ? Response.json(publicLot(lot)) : Response.json({ error: "Lot not found" }, { status: 404 });
   } catch (e) {
     console.error("get lot failed", e);
     return Response.json({ error: "Couldn't load the lot." }, { status: 502 });

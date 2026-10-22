@@ -37,6 +37,26 @@ export async function saveLot(lot: Lot): Promise<void> {
   await redis("HSET", HASH, lot.token, JSON.stringify(lot));
 }
 
+// Job workers' numbers are remembered by lowercase name, so staff type each number once.
+const WORKERS = "kaamtrack:workers";
+
+export async function rememberWorker(name: string, phone: string): Promise<void> {
+  await redis("HSET", WORKERS, name.trim().toLowerCase(), phone);
+}
+
+export async function workerPhone(name: string): Promise<string> {
+  const phone = await redis("HGET", WORKERS, name.trim().toLowerCase());
+  return typeof phone === "string" ? phone : "";
+}
+
+export async function markReminded(token: string, at: string): Promise<Lot | null> {
+  const lot = await getLot(token);
+  if (!lot) return null;
+  const next = { ...lot, last_reminded_at: at };
+  await saveLot(next);
+  return next;
+}
+
 export async function setStatus(token: string, status: string, at: string): Promise<Lot | null> {
   const lot = await getLot(token);
   if (!lot) return null;

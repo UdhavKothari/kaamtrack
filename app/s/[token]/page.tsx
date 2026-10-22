@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { showDate, STATUSES, type Lot } from "@/lib/lots";
+import { showDate, STATUSES, type PublicLot } from "@/lib/lots";
 import { StatusIcon } from "../../StatusIcon";
 
 // The job worker's page: one lot, four buttons, no login.
@@ -17,7 +17,7 @@ export default function Page() {
 
 function StatusPage() {
   const { token } = useParams<{ token: string }>();
-  const [lot, setLot] = useState<Lot | null>(null);
+  const [lot, setLot] = useState<PublicLot | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState("");
   const [done, setDone] = useState(false);
