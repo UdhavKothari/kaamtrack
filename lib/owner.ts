@@ -5,7 +5,7 @@ export const OWNER_COOKIE = "kt_owner";
 //  - the job worker's link page and its status API (one lot, by its secret token)
 //  - Meta's webhook (checks its own signature) and the daily cron (checks its own secret)
 //  - the sign-in page and API themselves
-const OPEN = [/^\/s\/[^/]+$/, /^\/api\/lots\/[0-9a-f]{16}$/, /^\/api\/whatsapp\/webhook$/, /^\/api\/cron\/[^/]+$/, /^\/login$/, /^\/api\/login$/];
+const OPEN = [/^\/s\/[^/]+$/, /^\/api\/lots\/[0-9a-f]{16}(\/note)?$/, /^\/api\/whatsapp\/webhook$/, /^\/api\/cron\/[^/]+$/, /^\/login$/, /^\/api\/login$/];
 export const isOpenPath = (pathname: string) => OPEN.some((re) => re.test(pathname));
 
 // The cookie holds a keyed hash of a fixed phrase, never the passcode, and can't be made without the passcode.

@@ -10,7 +10,9 @@ Live: https://kaamtrack-khaki.vercel.app
 - **Snap a challan.** The AI (`google/gemini-3.7-flash` through OpenRouter, pinned to Google) reads it into a lot card. Unclear fields are tagged, missing required fields turn red, and nothing is guessed. Staff always confirm before saving.
 - **A WhatsApp number per lot**, required, remembered per job worker name. The browser never receives numbers except on an owner's own Edit screen.
 - **Status links.** Each lot has a secret `/s/<token>` link: four buttons (Received, In process, Ready, Dispatched), no login, no app.
-- **The board.** Overdue lots in red, filter chips with counts, search by job worker, a laptop two-column layout, and Dispatched lots tucked into an Archive after 7 days.
+- **The board, phone first.** A tracking chart of every stage (lots and metres), compact cards that open with a tap, a Filter sheet (status and company / facility), search by facility, job worker or fabric quality, a Snap / Type bar at the bottom, and Dispatched lots tucked into an Archive after 7 days.
+- **Company / facility and fabric quality** are fields on every lot. Quantity can be metres or **lots (1 lot = 1200 m)**; old "thaan" lots still show.
+- **Remarks and voice notes.** On the status link a job worker can type a remark or record a voice note (Gujarati, Hindi or English). Gemini turns the voice note into text, a one-line English summary, a problem flag and any new date mentioned; it shows on the lot's card. It never changes the status or promised date by itself. Costs one AI call per voice note; limited to 20 notes per hour per IP.
 - **Edit and delete** a lot (owner side). Edit keeps the link, status and history. Delete is permanent, with a confirm.
 - **Challan photo kept** with the lot (a ~1100px JPEG, stored in Redis) so it can be checked against the paper.
 - **Free WhatsApp links:** Send on WhatsApp (status link) and Nudge on WhatsApp (reminder text) open WhatsApp with the message typed in. No Meta account needed.

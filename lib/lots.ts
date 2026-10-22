@@ -1,27 +1,42 @@
 // Plain rules for lots. No AI here: everything is checkable and never guesses.
 
 export const PROCESSES = ["dyeing", "printing", "embroidery", "other"];
-export const UNITS = ["metres", "thaan"];
+// "thaan" (one roll of fabric, length varies) stays valid for old lots but the screens only offer metres and lots.
+export const UNITS = ["metres", "lots", "thaan"];
+export const LOT_METRES = 1200; // one "lot" = 1200 metres
 export const STATUSES = ["Received", "In process", "Ready", "Dispatched"];
 export const FIRST_STATUS = "Sent";
+
+// ponytail: thaan length varies, so it is not counted in metre totals.
+export const toMetres = (quantity: number, unit: string) => (unit === "lots" ? quantity * LOT_METRES : unit === "metres" ? quantity : 0);
+
+// "3 lots (3600 m)", "800 metres", "40 thaan".
+export const qtyText = (l: { quantity: number; unit: string }) => (l.unit === "lots" ? `${l.quantity} lots (${toMetres(l.quantity, l.unit)} m)` : `${l.quantity} ${l.unit}`);
 
 // What the lot card edits. Strings because they come from form inputs; "" means blank.
 export type LotForm = {
   job_worker: string;
+  facility: string; // the company / unit the goods go to (optional)
   phone: string;
   process: string;
+  quality: string; // fabric quality, e.g. "60 gram georgette" (optional)
   quantity: string;
   unit: string;
   promised_date: string;
 };
+
+// A remark from the job worker: typed, or a voice note that Gemini turned into text and a short summary.
+export type Note = { at: string; status: string; text: string; voice: boolean; summary: string; problem: boolean; new_date: string };
 
 // One lot as stored. `phone` is the job worker's WhatsApp number as 91XXXXXXXXXX.
 export type Lot = {
   token: string;
   created_at: string;
   job_worker: string;
+  facility: string;
   phone: string;
   process: string;
+  quality: string;
   quantity: number;
   unit: string;
   promised_date: string;
@@ -29,6 +44,7 @@ export type Lot = {
   status_updated_at: string;
   last_reminded_at: string;
   has_photo: boolean; // the challan photo is kept (see savePhoto in store.ts)
+  notes: Note[]; // newest last, at most NOTES_KEPT
 };
 
 // A lot as the browser sees it: the phone number never leaves the server.
@@ -68,8 +84,10 @@ export function cleanExtraction(raw: unknown) {
 
   const form: LotForm = {
     job_worker: str(r.job_worker),
+    facility: str(r.facility),
     phone: localPhone(normalizePhone(r.job_worker_phone)),
     process: PROCESSES.includes(process) ? process : "",
+    quality: str(r.quality),
     quantity: Number.isFinite(qty) && qty > 0 ? String(qty) : "",
     unit: UNITS.includes(unit) ? unit : "metres",
     promised_date: isValidDate(date) ? date : "",
@@ -102,18 +120,26 @@ export function newLot(f: LotForm, now = new Date()): Lot {
   return {
     token: makeToken(),
     created_at: at,
-    job_worker: f.job_worker.trim(),
-    phone: normalizePhone(f.phone),
-    process: f.process,
-    quantity: Number(f.quantity),
-    unit: UNITS.includes(f.unit) ? f.unit : "metres",
-    promised_date: f.promised_date,
+    ...cardFields(f),
     status: FIRST_STATUS,
     status_updated_at: at,
     last_reminded_at: "",
     has_photo: false,
+    notes: [],
   };
 }
+
+// The fields the lot card edits, cleaned for storing.
+const cardFields = (f: LotForm) => ({
+  job_worker: f.job_worker.trim(),
+  facility: f.facility.trim(),
+  phone: normalizePhone(f.phone),
+  process: f.process,
+  quality: f.quality.trim(),
+  quantity: Number(f.quantity),
+  unit: UNITS.includes(f.unit) ? f.unit : "metres",
+  promised_date: f.promised_date,
+});
 
 // The kept challan photo must be a small JPEG data URL (the browser shrinks it to about 1100px).
 // Upstash's free plan rejects requests over 1 MB, so stay well under.
@@ -122,23 +148,37 @@ export const isStorablePhoto = (s: unknown): s is string => typeof s === "string
 // The lot card's values for an existing lot (used when editing); the phone shows as the 10 digits staff type.
 export const formFromLot = (lot: Lot): LotForm => ({
   job_worker: lot.job_worker,
+  facility: lot.facility,
   phone: localPhone(lot.phone),
   process: lot.process,
+  quality: lot.quality,
   quantity: String(lot.quantity),
   unit: lot.unit,
   promised_date: lot.promised_date,
 });
 
 // An edited lot keeps its link, status and history; only the card's fields change.
-export const applyEdit = (lot: Lot, f: LotForm): Lot => ({
-  ...lot,
-  job_worker: f.job_worker.trim(),
-  phone: normalizePhone(f.phone),
-  process: f.process,
-  quantity: Number(f.quantity),
-  unit: UNITS.includes(f.unit) ? f.unit : "metres",
-  promised_date: f.promised_date,
-});
+export const applyEdit = (lot: Lot, f: LotForm): Lot => ({ ...lot, ...cardFields(f) });
+
+export const NOTES_KEPT = 10;
+
+// Add a job worker's remark to a lot (newest last, oldest dropped past NOTES_KEPT).
+export const withNote = (lot: Lot, note: Note): Lot => ({ ...lot, notes: [...lot.notes, note].slice(-NOTES_KEPT) });
+
+// Turn Gemini's reading of a voice note into a safe Note. Nothing wrong ever blocks the note itself.
+export function cleanNote(raw: unknown, status: string, at: string, typed = ""): Note {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const date = str(r.new_date);
+  return {
+    at,
+    status,
+    text: (typed || str(r.transcript)).slice(0, 1000),
+    voice: !typed,
+    summary: str(r.summary).slice(0, 300),
+    problem: r.problem === true,
+    new_date: isValidDate(date) ? date : "",
+  };
+}
 
 // 2026-10-28 -> 28/10/2026, the way dates are written in Surat.
 export const showDate = (ymd: string) => (isValidDate(ymd) ? ymd.split("-").reverse().join("/") : ymd);
@@ -179,17 +219,34 @@ export const FILTERS: { key: Filter; label: string }[] = [
   { key: "archive", label: "Archive" },
 ];
 
-type Viewable = Pick<Lot, "status" | "status_updated_at" | "job_worker"> & { overdue: boolean };
+type Viewable = Pick<Lot, "status" | "status_updated_at" | "job_worker" | "facility" | "quality" | "quantity" | "unit"> & { overdue: boolean };
 
-// What the board shows for a filter chip and the search box. Archive is separate; everything else hides archived lots.
-export function filterLots<T extends Viewable>(lots: T[], filter: Filter, query = "", now = new Date()): T[] {
+// What the board shows for a status filter, the search box (job worker, facility or fabric quality) and an
+// optional exact facility. Archive is separate; everything else hides archived lots.
+export function filterLots<T extends Viewable>(lots: T[], filter: Filter, query = "", now = new Date(), facility = ""): T[] {
   const q = query.trim().toLowerCase();
   return lots.filter((l) => {
     if (isArchived(l, now) !== (filter === "archive")) return false;
     if (filter === "overdue" && !l.overdue) return false;
     if (filter !== "all" && filter !== "overdue" && filter !== "archive" && l.status !== filter) return false;
-    return !q || l.job_worker.toLowerCase().includes(q);
+    if (facility && l.facility !== facility) return false;
+    return !q || [l.job_worker, l.facility, l.quality].some((s) => s.toLowerCase().includes(q));
   });
+}
+
+// For the tracking chart: lots and metres at each stage, in the order work moves.
+export const FLOW = [FIRST_STATUS, ...STATUSES];
+export const stageTotals = (lots: Pick<Lot, "status" | "quantity" | "unit">[]) =>
+  FLOW.map((status) => {
+    const here = lots.filter((l) => l.status === status);
+    return { status, lots: here.length, metres: here.reduce((m, l) => m + toMetres(l.quantity, l.unit), 0) };
+  });
+
+// Facilities the lots have gone to, with how many lots each; the filter sheet lists them.
+export function facilitiesOf(lots: Pick<Lot, "facility">[]) {
+  const n = new Map<string, number>();
+  for (const l of lots) if (l.facility) n.set(l.facility, (n.get(l.facility) ?? 0) + 1);
+  return [...n].map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // Stored lots can be older than the current shape; fill gaps and drop junk rows.
@@ -203,8 +260,10 @@ export function rowsToLots(rows: unknown): Lot[] {
         token: String(l.token),
         created_at: String(l.created_at ?? ""),
         job_worker: String(l.job_worker ?? ""),
+        facility: String(l.facility ?? ""),
         phone: normalizePhone(l.phone),
         process: String(l.process ?? ""),
+        quality: String(l.quality ?? ""),
         quantity: Number(l.quantity) || 0,
         unit: String(l.unit ?? ""),
         promised_date: String(l.promised_date ?? ""),
@@ -212,6 +271,7 @@ export function rowsToLots(rows: unknown): Lot[] {
         status_updated_at: String(l.status_updated_at ?? ""),
         last_reminded_at: String(l.last_reminded_at ?? ""),
         has_photo: l.has_photo === true,
+        notes: Array.isArray(l.notes) ? (l.notes as Note[]) : [],
       };
     });
 }
@@ -223,7 +283,7 @@ export function publicLot(lot: Lot): PublicLot {
 
 export function whatsappLink(lot: Pick<Lot, "token" | "quantity" | "unit" | "process" | "promised_date">, origin: string) {
   const text =
-    `KaamTrack lot: ${lot.quantity} ${lot.unit}, ${lot.process}, promised ${showDate(lot.promised_date)}.\n` +
+    `KaamTrack lot: ${qtyText(lot)}, ${lot.process}, promised ${showDate(lot.promised_date)}.\n` +
     `Please tap your status here (no login needed): ${origin}/s/${lot.token}`;
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
@@ -245,7 +305,7 @@ export const nudgeLink = (lot: Pick<Lot, "token" | "phone" | "quantity" | "unit"
 // The four values filled into the WhatsApp template, in order.
 export const reminderParams = (lot: Pick<Lot, "token" | "quantity" | "unit" | "process" | "promised_date">, origin: string) => [
   lot.process,
-  `${lot.quantity} ${lot.unit}`,
+  qtyText(lot),
   showDate(lot.promised_date),
   `${origin}/s/${lot.token}`,
 ];

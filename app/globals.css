@@ -62,10 +62,9 @@ h2 { font-size: 1.15rem; margin: 28px 0 10px; }
 .req { font-style: normal; font-size: 0.75rem; color: var(--red); margin-left: 6px; }
 
 .board { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
-.lot { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 6px; }
+.lot { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
 .lot.overdue { border: 2px solid var(--red); background: var(--red-bg); }
-.lot.overdue strong { color: var(--red); }
-.lot-main { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.lot.overdue > summary strong:first-child, .late { color: var(--red); }
 .status { justify-self: start; font-size: 0.8rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: #ecebe7; }
 .s-received { background: #e3effd; color: #1a4f8b; }
 .s-inprocess { background: var(--amber-bg); color: var(--amber); }
@@ -132,3 +131,72 @@ main.wide { max-width: 1100px; }
 .link { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); text-decoration: underline; cursor: pointer; }
 .lot .photo { max-height: 420px; }
 @media (min-width: 900px) { .board { grid-template-columns: repeat(2, 1fr); align-items: start; } }
+
+/* ---- Phone-first board: tracker, collapsed cards, filter sheet, bottom dock ---- */
+main { padding-bottom: 96px; }
+header p { margin: 2px 0 0; }
+
+.tracker { display: grid; gap: 12px; }
+.tracker-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.bar { display: flex; gap: 2px; height: 14px; border-radius: 999px; overflow: hidden; background: #ecebe7; }
+.seg { min-width: 6px; background: #b9b6ae; }
+.seg.s-received { background: #4a86c9; }
+.seg.s-inprocess { background: #d9a017; }
+.seg.s-ready { background: #3f9a67; }
+.seg.s-dispatched { background: var(--accent); }
+.stages { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; }
+.stage { min-height: 44px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); font: inherit; color: var(--text); text-align: left; cursor: pointer; }
+.stage .status { grid-column: 1 / -1; }
+.stage strong { font-size: 1.3rem; }
+.stage.on { border: 2px solid var(--accent); }
+
+.toolbar { display: flex; gap: 8px; margin-bottom: 10px; }
+.toolbar .search { flex: 1; max-width: none; min-width: 0; }
+.filter-btn { position: relative; }
+.badge { background: var(--accent); color: #fff; border-radius: 999px; min-width: 20px; padding: 0 6px; font-size: 0.8rem; text-align: center; }
+.active-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.empty { padding: 24px 0; text-align: center; }
+
+.board li { list-style: none; }
+.lot > summary { list-style: none; cursor: pointer; display: grid; gap: 6px; padding: 12px 14px; min-height: 44px; }
+.lot > summary::-webkit-details-marker { display: none; }
+.lot-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.lot-top strong { font-size: 1.05rem; overflow-wrap: anywhere; }
+.chev { flex: none; width: 10px; height: 10px; border-right: 2.5px solid var(--muted); border-bottom: 2.5px solid var(--muted); transform: rotate(45deg); margin: 0 4px 4px 0; transition: transform 0.15s ease; }
+.lot[open] .chev { transform: rotate(-135deg); margin: 4px 4px 0 0; }
+.lot-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 0.92rem; }
+.pill { font-size: 0.78rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #ecebe7; }
+.pill.problem { background: var(--red); color: #fff; }
+.lot-body { display: grid; gap: 10px; padding: 0 14px 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 0.92rem; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; font-weight: 600; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions .button { flex: 1 1 140px; }
+
+.notes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.notes li { display: grid; gap: 2px; padding: 8px 10px; border-radius: 8px; background: #f0eee9; font-size: 0.92rem; }
+.notes li.problem { background: var(--red-bg); border-left: 4px solid var(--red); }
+.worker .notes { margin-top: 16px; }
+
+/* Worker remark + voice note */
+.remark { display: grid; gap: 8px; margin-top: 20px; }
+.remark label { font-weight: 600; }
+.remark textarea { width: 100%; padding: 10px; font: inherit; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
+.button.rec { background: var(--red); border-color: var(--red); color: #fff; }
+
+/* Bottom dock: the two ways to add a lot, in thumb reach */
+.dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; gap: 8px; justify-content: center; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: var(--panel); border-top: 1px solid var(--line); }
+.dock .button { flex: 1; max-width: 280px; min-height: 52px; }
+
+/* Filter sheet: a native <dialog> pinned to the bottom on phones */
+.sheet { margin: auto auto 0; width: 100%; max-width: 560px; max-height: 85vh; border: 0; border-radius: 16px 16px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); background: var(--panel); color: var(--text); overflow-y: auto; }
+.sheet::backdrop { background: rgba(0, 0, 0, 0.4); }
+.sheet-head { display: flex; justify-content: space-between; align-items: center; }
+.sheet h2 { margin: 0; }
+.sheet h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 18px 0 8px; }
+.sheet-foot { margin-top: 20px; }
+.sheet-foot .button.primary { flex: 1; }
+@media (min-width: 720px) { .sheet { margin: auto; border-radius: 16px; } }
+@media (prefers-reduced-motion: reduce) { .chev { transition: none; } }
+.stage .status { white-space: nowrap; padding: 3px 6px; gap: 4px; font-size: 0.75rem; }

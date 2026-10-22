@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { isOpenPath, ownerToken, sameString } from "../lib/owner.ts";
 
 test("open without a passcode: job worker pages and Meta/cron/login endpoints only", () => {
-  for (const open of ["/s/0123456789abcdef", "/api/lots/0123456789abcdef", "/api/whatsapp/webhook", "/api/cron/remind", "/login", "/api/login"]) {
+  for (const open of ["/s/0123456789abcdef", "/api/lots/0123456789abcdef", "/api/lots/0123456789abcdef/note", "/api/whatsapp/webhook", "/api/cron/remind", "/login", "/api/login"]) {
     assert.equal(isOpenPath(open), true, open);
   }
 });
@@ -13,7 +13,7 @@ test("everything of the owner's needs the passcode, including look-alikes of the
     "/", "/whatsapp", "/api/lots", "/api/extract", "/api/workers", "/api/whatsapp/simulate",
     "/api/lots/0123456789abcdef/remind", "/api/lots/0123456789abcdef/nudge", "/api/lots/0123456789abcdef/messages",
     "/api/lots/0123456789abcdef/edit", "/api/lots/0123456789abcdef/delete", "/api/lots/0123456789abcdef/photo",
-    "/api/lots/not-a-token", "/api/lots/0123456789abcdef/", "/s/", "/s/a/b", "/api/cron", "/login/x", "/api/whatsapp/webhook/x",
+    "/api/lots/not-a-token", "/api/lots/not-a-token/note", "/api/lots/0123456789abcdef/note/x", "/api/lots/0123456789abcdef/", "/s/", "/s/a/b", "/api/cron", "/login/x", "/api/whatsapp/webhook/x",
   ]) {
     assert.equal(isOpenPath(closed), false, closed);
   }

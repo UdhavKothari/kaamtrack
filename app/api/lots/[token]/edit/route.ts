@@ -20,8 +20,10 @@ export async function POST(req: Request, ctx: RouteContext<"/api/lots/[token]/ed
   const body = (await req.json().catch(() => ({}))) as Partial<LotForm>;
   const form: LotForm = {
     job_worker: String(body.job_worker ?? ""),
+    facility: String(body.facility ?? ""),
     phone: String(body.phone ?? ""),
     process: String(body.process ?? ""),
+    quality: String(body.quality ?? ""),
     quantity: String(body.quantity ?? ""),
     unit: String(body.unit ?? ""),
     promised_date: String(body.promised_date ?? ""),

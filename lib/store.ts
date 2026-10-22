@@ -1,7 +1,7 @@
 // Everything lives in Upstash Redis, called over its REST API with plain fetch.
 // ponytail: lots are one JSON value per token and status updates read-modify-write, fine for one tap at a time;
 // move each lot to its own Redis hash (one field per value) if two writers ever race.
-import { applyEdit, isToken, rowsToLots, type Lot, type LotForm } from "./lots.ts";
+import { applyEdit, isToken, rowsToLots, withNote, type Lot, type LotForm, type Note } from "./lots.ts";
 import type { Msg, NewMsg } from "./inbound.ts";
 import { clientIp } from "./owner.ts";
 
@@ -90,6 +90,15 @@ export async function markReminded(token: string, at: string): Promise<Lot | nul
   const lot = await getLot(token);
   if (!lot) return null;
   const next = { ...lot, last_reminded_at: at };
+  await saveLot(next);
+  return next;
+}
+
+// A job worker's remark goes on the lot itself, so the board gets it with the lot (no extra read).
+export async function addNote(token: string, note: Note): Promise<Lot | null> {
+  const lot = await getLot(token);
+  if (!lot) return null;
+  const next = withNote(lot, note);
   await saveLot(next);
   return next;
 }

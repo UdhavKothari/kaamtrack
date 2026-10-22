@@ -32,6 +32,33 @@ export function StatusIcon({ status, size = 20 }: { status: string; size?: numbe
   );
 }
 
+const Icon = ({ children }: { children: React.ReactNode }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {children}
+  </svg>
+);
+export const MicIcon = () => (
+  <Icon>
+    <rect x="9" y="3" width="6" height="11" rx="3" />
+    <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+  </Icon>
+);
+export const StopIcon = () => (
+  <Icon>
+    <rect x="6" y="6" width="12" height="12" rx="2" />
+  </Icon>
+);
+export const FilterIcon = () => (
+  <Icon>
+    <path d="M4 6h16M7 12h10M10 18h4" />
+  </Icon>
+);
+export const PlusIcon = () => (
+  <Icon>
+    <path d="M12 5v14M5 12h14" />
+  </Icon>
+);
+
 export const CameraIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M3 8h4l2-3h6l2 3h4v11H3z" />
