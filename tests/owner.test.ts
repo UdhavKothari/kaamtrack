@@ -12,6 +12,7 @@ test("everything of the owner's needs the passcode, including look-alikes of the
   for (const closed of [
     "/", "/whatsapp", "/api/lots", "/api/extract", "/api/workers", "/api/whatsapp/simulate",
     "/api/lots/0123456789abcdef/remind", "/api/lots/0123456789abcdef/nudge", "/api/lots/0123456789abcdef/messages",
+    "/api/lots/0123456789abcdef/edit", "/api/lots/0123456789abcdef/delete", "/api/lots/0123456789abcdef/photo",
     "/api/lots/not-a-token", "/api/lots/0123456789abcdef/", "/s/", "/s/a/b", "/api/cron", "/login/x", "/api/whatsapp/webhook/x",
   ]) {
     assert.equal(isOpenPath(closed), false, closed);

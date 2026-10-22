@@ -15,7 +15,7 @@ const deps: Deps = {
       const sent = await sendText(lot.phone, text);
       await logMessage(lot.token, { dir: "out", kind, text, provider: sent.provider, state: "sent", id: sent.id });
     } catch (e) {
-      await logMessage(lot.token, { dir: "out", kind, text, provider: whatsappMode(), state: "failed", error: e instanceof Error ? e.message : "send failed" });
+      await logMessage(lot.token, { dir: "out", kind, text, provider: whatsappMode() === "meta" ? "meta" : "mock", state: "failed", error: e instanceof Error ? e.message : "send failed" });
     }
   },
 };

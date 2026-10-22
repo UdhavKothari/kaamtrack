@@ -28,6 +28,7 @@ export type Lot = {
   status: string;
   status_updated_at: string;
   last_reminded_at: string;
+  has_photo: boolean; // the challan photo is kept (see savePhoto in store.ts)
 };
 
 // A lot as the browser sees it: the phone number never leaves the server.
@@ -110,8 +111,34 @@ export function newLot(f: LotForm, now = new Date()): Lot {
     status: FIRST_STATUS,
     status_updated_at: at,
     last_reminded_at: "",
+    has_photo: false,
   };
 }
+
+// The kept challan photo must be a small JPEG data URL (the browser shrinks it to about 1100px).
+// Upstash's free plan rejects requests over 1 MB, so stay well under.
+export const isStorablePhoto = (s: unknown): s is string => typeof s === "string" && s.length <= 450_000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(s);
+
+// The lot card's values for an existing lot (used when editing); the phone shows as the 10 digits staff type.
+export const formFromLot = (lot: Lot): LotForm => ({
+  job_worker: lot.job_worker,
+  phone: localPhone(lot.phone),
+  process: lot.process,
+  quantity: String(lot.quantity),
+  unit: lot.unit,
+  promised_date: lot.promised_date,
+});
+
+// An edited lot keeps its link, status and history; only the card's fields change.
+export const applyEdit = (lot: Lot, f: LotForm): Lot => ({
+  ...lot,
+  job_worker: f.job_worker.trim(),
+  phone: normalizePhone(f.phone),
+  process: f.process,
+  quantity: Number(f.quantity),
+  unit: UNITS.includes(f.unit) ? f.unit : "metres",
+  promised_date: f.promised_date,
+});
 
 // 2026-10-28 -> 28/10/2026, the way dates are written in Surat.
 export const showDate = (ymd: string) => (isValidDate(ymd) ? ymd.split("-").reverse().join("/") : ymd);
@@ -128,6 +155,41 @@ export function isOverdue(lot: Pick<Lot, "promised_date" | "status">, today: str
 export function daysOut(lot: Pick<Lot, "created_at">, today: string) {
   const sent = todayIST(new Date(lot.created_at));
   return Math.max(0, Math.round(dayNumber(today) - dayNumber(sent)));
+}
+
+// ---- Board views ----
+
+export const ARCHIVE_AFTER_DAYS = 7;
+
+// A Dispatched lot leaves the main board a week after it was dispatched; the Archive view still shows it.
+export function isArchived(lot: Pick<Lot, "status" | "status_updated_at">, now = new Date()) {
+  const when = Date.parse(lot.status_updated_at);
+  return lot.status === "Dispatched" && !isNaN(when) && now.getTime() - when > ARCHIVE_AFTER_DAYS * 86_400_000;
+}
+
+export type Filter = "all" | "overdue" | "archive" | (typeof STATUSES)[number] | typeof FIRST_STATUS;
+export const FILTERS: { key: Filter; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "overdue", label: "Overdue" },
+  { key: FIRST_STATUS, label: "Sent" },
+  { key: "Received", label: "Received" },
+  { key: "In process", label: "In process" },
+  { key: "Ready", label: "Ready" },
+  { key: "Dispatched", label: "Dispatched" },
+  { key: "archive", label: "Archive" },
+];
+
+type Viewable = Pick<Lot, "status" | "status_updated_at" | "job_worker"> & { overdue: boolean };
+
+// What the board shows for a filter chip and the search box. Archive is separate; everything else hides archived lots.
+export function filterLots<T extends Viewable>(lots: T[], filter: Filter, query = "", now = new Date()): T[] {
+  const q = query.trim().toLowerCase();
+  return lots.filter((l) => {
+    if (isArchived(l, now) !== (filter === "archive")) return false;
+    if (filter === "overdue" && !l.overdue) return false;
+    if (filter !== "all" && filter !== "overdue" && filter !== "archive" && l.status !== filter) return false;
+    return !q || l.job_worker.toLowerCase().includes(q);
+  });
 }
 
 // Stored lots can be older than the current shape; fill gaps and drop junk rows.
@@ -149,6 +211,7 @@ export function rowsToLots(rows: unknown): Lot[] {
         status: String(l.status ?? FIRST_STATUS),
         status_updated_at: String(l.status_updated_at ?? ""),
         last_reminded_at: String(l.last_reminded_at ?? ""),
+        has_photo: l.has_photo === true,
       };
     });
 }

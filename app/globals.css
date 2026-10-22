@@ -117,3 +117,18 @@ h2 { font-size: 1.15rem; margin: 28px 0 10px; }
 .doc thead th { background: #f0eee9; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
 .doc tbody tr:last-child th, .doc tbody tr:last-child td { border-bottom: 0; }
 .doc code { background: #f0eee9; padding: 1px 5px; border-radius: 4px; }
+
+/* Board for daily use: filters, search, two columns on laptops */
+main.wide { max-width: 1100px; }
+.board-tools { display: grid; gap: 10px; margin-bottom: 12px; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+.chip .count { background: #ecebe7; border-radius: 999px; padding: 1px 8px; font-size: 0.8rem; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip[aria-pressed="true"] .count { background: rgba(255, 255, 255, 0.22); color: #fff; }
+.chip.alert:not([aria-pressed="true"]) { border-color: var(--red); color: var(--red); }
+.search { min-height: 44px; padding: 0 12px; font: inherit; border: 1px solid var(--line); border-radius: 10px; background: #fff; width: 100%; max-width: 360px; }
+.button.danger { color: var(--red); border-color: #e7b9b5; }
+.link { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); text-decoration: underline; cursor: pointer; }
+.lot .photo { max-height: 420px; }
+@media (min-width: 900px) { .board { grid-template-columns: repeat(2, 1fr); align-items: start; } }

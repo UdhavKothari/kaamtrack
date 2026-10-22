@@ -1,7 +1,7 @@
 // Everything lives in Upstash Redis, called over its REST API with plain fetch.
 // ponytail: lots are one JSON value per token and status updates read-modify-write, fine for one tap at a time;
 // move each lot to its own Redis hash (one field per value) if two writers ever race.
-import { isToken, rowsToLots, type Lot } from "./lots.ts";
+import { applyEdit, isToken, rowsToLots, type Lot, type LotForm } from "./lots.ts";
 import type { Msg, NewMsg } from "./inbound.ts";
 import { clientIp } from "./owner.ts";
 
@@ -44,6 +44,36 @@ export async function getLot(token: string): Promise<Lot | null> {
 
 export async function saveLot(lot: Lot): Promise<void> {
   await redis("HSET", HASH, lot.token, JSON.stringify(lot));
+}
+
+// Owner edits: only the card's fields change; the link, status and history stay.
+export async function updateLot(token: string, form: LotForm): Promise<Lot | null> {
+  const lot = await getLot(token);
+  if (!lot) return null;
+  const next = applyEdit(lot, form);
+  await saveLot(next);
+  return next;
+}
+
+// The challan photo, kept as base64 text in Redis (one small JPEG per lot) so there is no extra service to run.
+const photoKey = (token: string) => `${NS}:photo:${token}`;
+
+export async function savePhoto(token: string, dataUrl: string): Promise<void> {
+  await redis("SET", photoKey(token), dataUrl.slice(dataUrl.indexOf(",") + 1));
+}
+
+export async function getPhoto(token: string): Promise<Buffer | null> {
+  if (!isToken(token)) return null;
+  const b64 = await redis("GET", photoKey(token));
+  return typeof b64 === "string" ? Buffer.from(b64, "base64") : null;
+}
+
+// Permanent. Removes the lot, its photo and conversation log, and so its worker link stops working.
+export async function deleteLot(token: string): Promise<boolean> {
+  if (!isToken(token)) return false;
+  const removed = Number(await redis("HDEL", HASH, token));
+  await redis("DEL", msgsKey(token), photoKey(token));
+  return removed > 0;
 }
 
 // Job workers' numbers are remembered by lowercase name, so staff type each number once.

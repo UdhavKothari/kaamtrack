@@ -1,15 +1,18 @@
-// WhatsApp sending. Two providers behind one switch (WHATSAPP_MODE):
-//   mock (default): nothing leaves the app; messages are recorded and shown in the simulator.
+// WhatsApp sending. Providers behind one switch (WHATSAPP_MODE):
+//   off (default): automation is not used; the board only offers the free wa.me links.
+//   mock: nothing leaves the app; messages are recorded and shown in the simulator.
 //   meta: Meta's WhatsApp Cloud API with the approved template (reminders) or plain text (replies, free inside 24h).
 import { reminderParams, type Lot } from "./lots.ts";
 
 const API = "https://graph.facebook.com/v26.0";
 
 export type Provider = "mock" | "meta";
-export const whatsappMode = (): Provider => (process.env.WHATSAPP_MODE === "meta" ? "meta" : "mock");
+export type Mode = "off" | Provider;
+export const whatsappMode = (): Mode => (process.env.WHATSAPP_MODE === "meta" ? "meta" : process.env.WHATSAPP_MODE === "mock" ? "mock" : "off");
 
-// The board offers automatic sending when simulating, or when Meta's token and number are configured.
-export const whatsappReady = () => whatsappMode() === "mock" || !!(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
+// The board offers automatic sending when simulating, or when Meta's token and number are configured. Never when off.
+export const whatsappReady = () =>
+  whatsappMode() === "mock" || (whatsappMode() === "meta" && !!(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID));
 
 async function metaSend(to: string, payload: Record<string, unknown>): Promise<string> {
   const token = process.env.WHATSAPP_TOKEN;
@@ -29,9 +32,15 @@ async function metaSend(to: string, payload: Record<string, unknown>): Promise<s
 
 const mockId = () => `mock-${crypto.randomUUID().slice(0, 12)}`;
 
+function provider(): Provider {
+  const mode = whatsappMode();
+  if (mode === "off") throw new Error("WhatsApp automation is switched off.");
+  return mode;
+}
+
 // Business-started reminder: must be the approved template.
 export async function sendReminder(lot: Lot, origin: string): Promise<{ id: string; provider: Provider }> {
-  if (whatsappMode() === "mock") return { id: mockId(), provider: "mock" };
+  if (provider() === "mock") return { id: mockId(), provider: "mock" };
   const id = await metaSend(lot.phone, {
     type: "template",
     template: {
@@ -45,6 +54,6 @@ export async function sendReminder(lot: Lot, origin: string): Promise<{ id: stri
 
 // Free-form text, allowed because the job worker messaged first (24-hour window).
 export async function sendText(phone: string, text: string): Promise<{ id: string; provider: Provider }> {
-  if (whatsappMode() === "mock") return { id: mockId(), provider: "mock" };
+  if (provider() === "mock") return { id: mockId(), provider: "mock" };
   return { id: await metaSend(phone, { type: "text", text: { body: text } }), provider: "meta" };
 }

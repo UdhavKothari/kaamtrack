@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  cleanExtraction, daysOut, dueForReminder, isOverdue, isToken, minutesUntilRemindable, missingFields, newLot,
+  applyEdit, filterLots, formFromLot, isArchived, isStorablePhoto, cleanExtraction, daysOut, dueForReminder, isOverdue, isToken, minutesUntilRemindable, missingFields, newLot,
   normalizePhone, nudgeLink, publicLot, reminderParams, rowsToLots, showDate, STATUSES,
 } from "../lib/lots.ts";
 import { sendReminder } from "../lib/whatsapp.ts";
@@ -43,6 +43,54 @@ test("phones: Indian mobiles in any common format, nothing else", () => {
   for (const bad of ["", "12345", "5876543210", "98765432101", "+1 415 555 0100", "GJ05AB1234", null, undefined]) {
     assert.equal(normalizePhone(bad), "", String(bad));
   }
+});
+
+test("editing keeps the link, status and history; only the card's fields change; the phone round-trips", () => {
+  const lot = { ...newLot(good), token: "0123456789abcdef", status: "Ready", last_reminded_at: "2026-11-01T04:00:00.000Z" };
+  const f = formFromLot(lot);
+  assert.deepEqual(f, { job_worker: "A", phone: "9876543210", process: "printing", quantity: "40", unit: "thaan", promised_date: "2026-11-01" });
+  const edited = applyEdit(lot, { ...f, job_worker: "  B Dyers ", phone: "+91 90000 00033", quantity: "55" });
+  assert.equal(edited.token, lot.token);
+  assert.equal(edited.status, "Ready");
+  assert.equal(edited.created_at, lot.created_at);
+  assert.equal(edited.last_reminded_at, lot.last_reminded_at);
+  assert.equal(edited.job_worker, "B Dyers");
+  assert.equal(edited.phone, "919000000033");
+  assert.equal(edited.quantity, 55);
+  assert.deepEqual(applyEdit(lot, f), lot);
+});
+
+test("board views: filters, search, and a week-old Dispatched lot moving to the Archive", () => {
+  const now = new Date("2026-11-10T10:00:00.000Z");
+  const row = (job_worker: string, status: string, status_updated_at: string, overdue = false) => ({ job_worker, status, status_updated_at, overdue });
+  const lots = [
+    row("Shree Dyeing", "Ready", "2026-11-09T10:00:00.000Z"),
+    row("Laxmi Prints", "In process", "2026-11-05T10:00:00.000Z", true),
+    row("Om Embroidery", "Dispatched", "2026-11-09T10:00:00.000Z"),
+    row("Old Dispatch", "Dispatched", "2026-11-01T10:00:00.000Z"),
+  ];
+  const names = (l: typeof lots) => l.map((x) => x.job_worker);
+  assert.deepEqual(names(filterLots(lots, "all", "", now)), ["Shree Dyeing", "Laxmi Prints", "Om Embroidery"]); // archived hidden
+  assert.deepEqual(names(filterLots(lots, "archive", "", now)), ["Old Dispatch"]);
+  assert.deepEqual(names(filterLots(lots, "overdue", "", now)), ["Laxmi Prints"]);
+  assert.deepEqual(names(filterLots(lots, "Ready", "", now)), ["Shree Dyeing"]);
+  assert.deepEqual(names(filterLots(lots, "Dispatched", "", now)), ["Om Embroidery"]); // the old one is archived
+  assert.deepEqual(names(filterLots(lots, "all", "  EMB ", now)), ["Om Embroidery"]); // case-insensitive, trimmed
+  assert.deepEqual(names(filterLots(lots, "archive", "old", now)), ["Old Dispatch"]);
+  assert.equal(isArchived({ status: "Dispatched", status_updated_at: "" }, now), false); // no date: never hide
+  assert.equal(isArchived({ status: "Ready", status_updated_at: "2026-01-01T00:00:00.000Z" }, now), false); // only Dispatched archives
+});
+
+test("kept photos: only small JPEG data URLs are accepted", () => {
+  const ok = "data:image/jpeg;base64," + "A".repeat(1000);
+  assert.equal(isStorablePhoto(ok), true);
+  assert.equal(isStorablePhoto("data:image/png;base64,AAAA"), false);
+  assert.equal(isStorablePhoto("data:image/jpeg;base64,<script>"), false);
+  assert.equal(isStorablePhoto("https://evil.example/x.jpg"), false);
+  assert.equal(isStorablePhoto("data:image/jpeg;base64," + "A".repeat(450_000)), false); // too big for Upstash's free plan
+  assert.equal(isStorablePhoto(undefined), false);
+  assert.equal(isStorablePhoto(12345), false);
+  assert.equal(newLot(good).has_photo, false);
 });
 
 test("overdue only when promised date passed and not dispatched", () => {
@@ -146,6 +194,9 @@ test("WhatsApp request: Meta template shape, the four values in order, errors su
     globalThis.fetch = realFetch;
     delete process.env.WHATSAPP_MODE;
   }
-  // default mode is the simulator: nothing is sent
+  // default is off: nothing is sent; the simulator is opt-in
+  await assert.rejects(sendReminder(lot, "https://x.app"), /switched off/);
+  process.env.WHATSAPP_MODE = "mock";
   assert.equal((await sendReminder(lot, "https://x.app")).provider, "mock");
+  delete process.env.WHATSAPP_MODE;
 });

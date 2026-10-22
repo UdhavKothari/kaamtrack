@@ -1,6 +1,7 @@
 import { listLots } from "@/lib/store";
 import { dueForReminder, todayIST } from "@/lib/lots";
 import { remindLot } from "@/lib/conversation";
+import { whatsappMode } from "@/lib/whatsapp";
 
 export const maxDuration = 60;
 
@@ -12,6 +13,7 @@ export async function GET(req: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  if (whatsappMode() === "off") return Response.json({ skipped: "WhatsApp automation is off" });
   const origin = new URL(req.url).origin;
   const today = todayIST();
   const due = (await listLots()).filter((l) => dueForReminder(l, today)).slice(0, 50);
