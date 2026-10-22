@@ -5,7 +5,8 @@ import { readChallan } from "../lib/ai.ts";
 import { cleanExtraction, todayIST } from "../lib/lots.ts";
 
 const dir = new URL("../test-challans/", import.meta.url);
-const expected = JSON.parse(await readFile(new URL("expected.json", dir), "utf8").catch(() => "{}"));
+// Strip the byte-order mark Windows Notepad adds, or JSON.parse fails.
+const expected = JSON.parse((await readFile(new URL("expected.json", dir), "utf8").catch(() => "{}")).replace(/^﻿/, ""));
 const photos = (await readdir(dir)).filter((f) => /\.(jpe?g|png|webp)$/i.test(f));
 const fields = ["job_worker", "process", "quantity", "unit", "promised_date"];
 const norm = (v) => String(v ?? "").trim().toLowerCase();
