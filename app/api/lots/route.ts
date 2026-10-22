@@ -1,10 +1,10 @@
-import { n8n } from "@/lib/n8n";
-import { daysOut, isOverdue, missingFields, newLot, rowsToLots, todayIST, type LotForm } from "@/lib/lots";
+import { listLots, saveLot } from "@/lib/store";
+import { daysOut, isOverdue, missingFields, newLot, todayIST, type LotForm } from "@/lib/lots";
 
 export async function GET() {
   try {
     const today = todayIST();
-    const lots = rowsToLots(await n8n("lots"))
+    const lots = (await listLots())
       .map((l) => ({ ...l, overdue: isOverdue(l, today), days_out: daysOut(l, today) }))
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
     return Response.json(lots);
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
 
   try {
     const lot = newLot(form);
-    await n8n("lot-create", lot);
+    await saveLot(lot);
     return Response.json(lot);
   } catch (e) {
     console.error("save lot failed", e);
