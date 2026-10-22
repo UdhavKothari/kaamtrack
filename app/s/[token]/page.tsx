@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { STATUSES, type Lot } from "@/lib/lots";
+import { showDate, STATUSES, type Lot } from "@/lib/lots";
 import { StatusIcon } from "../../StatusIcon";
 
 // The job worker's page: one lot, four buttons, no login.
@@ -58,7 +58,7 @@ function StatusPage() {
         <p>
           <strong>{lot.quantity} {lot.unit}</strong> for <strong>{lot.process}</strong>
         </p>
-        <p className="muted">Job worker: {lot.job_worker} · Promised: {lot.promised_date}</p>
+        <p className="muted">Job worker: {lot.job_worker} · Promised: {showDate(lot.promised_date)}</p>
       </div>
       <p>Tap the current status of this lot:</p>
       <div className="status-buttons">
@@ -70,8 +70,8 @@ function StatusPage() {
           </button>
         ))}
       </div>
-      {done && <p className="done">Updated ✓ The owner can see it now.</p>}
-      {error && <p className="notice">{error}</p>}
+      {done && <p className="done" role="status">Updated ✓ The owner can see it now.</p>}
+      {error && <p className="notice" role="alert">{error}</p>}
     </main>
   );
 }

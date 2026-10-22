@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanExtraction, daysOut, isOverdue, isToken, missingFields, newLot, rowsToLots, STATUSES } from "../lib/lots.ts";
+import { cleanExtraction, showDate, daysOut, isOverdue, isToken, missingFields, newLot, rowsToLots, STATUSES } from "../lib/lots.ts";
 
 test("good AI output becomes a full card", () => {
   const r = cleanExtraction({
@@ -34,6 +34,11 @@ test("overdue only when promised date passed and not dispatched", () => {
   assert.equal(isOverdue({ promised_date: "2026-10-21", status: "In process" }, "2026-10-22"), true);
   assert.equal(isOverdue({ promised_date: "2026-10-22", status: "In process" }, "2026-10-22"), false);
   assert.equal(isOverdue({ promised_date: "2026-10-01", status: "Dispatched" }, "2026-10-22"), false);
+});
+
+test("dates show day first, bad dates pass through", () => {
+  assert.equal(showDate("2026-10-28"), "28/10/2026");
+  assert.equal(showDate("not a date"), "not a date");
 });
 
 test("days out counts India calendar days", () => {

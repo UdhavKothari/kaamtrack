@@ -91,6 +91,9 @@ export function newLot(f: LotForm, now = new Date()): Lot {
   };
 }
 
+// 2026-10-28 -> 28/10/2026, the way dates are written in Surat.
+export const showDate = (ymd: string) => (isValidDate(ymd) ? ymd.split("-").reverse().join("/") : ymd);
+
 // Surat time, as YYYY-MM-DD.
 export const todayIST = (now = new Date()) => now.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 

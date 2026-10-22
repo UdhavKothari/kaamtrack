@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { missingFields, PROCESSES, UNITS, whatsappLink, type Lot, type LotForm } from "@/lib/lots";
+import { missingFields, PROCESSES, showDate, UNITS, whatsappLink, type Lot, type LotForm } from "@/lib/lots";
 import { CameraIcon, StatusIcon } from "./StatusIcon";
 
 type BoardLot = Lot & { overdue: boolean; days_out: number };
@@ -36,6 +36,17 @@ export default function Home() {
   const [saving, setSaving] = useState(false);
   const [lots, setLots] = useState<BoardLot[]>([]);
   const [boardError, setBoardError] = useState("");
+  const [copied, setCopied] = useState("");
+
+  async function copyLink(token: string) {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/s/${token}`);
+      setCopied(token);
+      setTimeout(() => setCopied((c) => (c === token ? "" : c)), 2000);
+    } catch {
+      setNotice("Couldn't copy. Use Send on WhatsApp instead.");
+    }
+  }
 
   const loadLots = useCallback(async () => {
     try {
@@ -135,8 +146,8 @@ export default function Home() {
           </button>
         </div>
 
-        {reading && <p className="reading">Reading challan…</p>}
-        {notice && <p className="notice">{notice}</p>}
+        {reading && <p className="reading" role="status">Reading challan…</p>}
+        {notice && <p className="notice" role="status">{notice}</p>}
 
         {card && (
           <div className="capture">
@@ -178,7 +189,7 @@ export default function Home() {
         <h2>
           Lots out <span className="muted">({lots.length}{overdueCount ? `, ${overdueCount} overdue` : ""})</span>
         </h2>
-        {boardError && <p className="notice">{boardError}</p>}
+        {boardError && <p className="notice" role="alert">{boardError}</p>}
         {!lots.length && !boardError && <p className="muted">No lots yet. Snap a challan to start.</p>}
         <ul className="board">
           {board.map((l) => (
@@ -193,15 +204,15 @@ export default function Home() {
                 <StatusIcon status={l.status} size={16} /> {l.status}
               </span>
               <span className="muted small">
-                {l.days_out} day{l.days_out === 1 ? "" : "s"} out · promised {l.promised_date}
+                {l.days_out} day{l.days_out === 1 ? "" : "s"} out · promised {showDate(l.promised_date)}
                 {l.overdue && <strong> · OVERDUE</strong>}
               </span>
               <div className="row">
                 <a className="button small" href={whatsappLink(l, origin)} target="_blank" rel="noreferrer">
                   Send on WhatsApp
                 </a>
-                <button className="button small" onClick={() => navigator.clipboard.writeText(`${origin}/s/${l.token}`)}>
-                  Copy link
+                <button className="button small" onClick={() => copyLink(l.token)} aria-live="polite">
+                  {copied === l.token ? "Copied ✓" : "Copy link"}
                 </button>
               </div>
             </li>
