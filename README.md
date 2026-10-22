@@ -2,39 +2,65 @@
 
 Surat textile owners send grey fabric to job workers for dyeing, printing and embroidery, then spend hours a day phoning to ask where each lot is. KaamTrack turns a photo of the paper challan into a tracked lot, and the job worker updates its status from a no-login link.
 
-**MVP journey:** challan photo in → editable lot card → lot on the owner's board → job worker taps a status → board updates.
+**The journey:** challan photo in → editable lot card → lot on the owner's board → job worker taps a status → board updates.
+
+Live: https://kaamtrack-khaki.vercel.app
+
+## What it does
+- **Snap a challan.** The AI (`google/gemini-3.7-flash` through OpenRouter, pinned to Google) reads it into a lot card. Unclear fields are tagged, missing required fields turn red, and nothing is guessed. Staff always confirm before saving.
+- **A WhatsApp number per lot**, required, remembered per job worker name. The browser never receives numbers except on an owner's own Edit screen.
+- **Status links.** Each lot has a secret `/s/<token>` link: four buttons (Received, In process, Ready, Dispatched), no login, no app.
+- **The board.** Overdue lots in red, filter chips with counts, search by job worker, a laptop two-column layout, and Dispatched lots tucked into an Archive after 7 days.
+- **Edit and delete** a lot (owner side). Edit keeps the link, status and history. Delete is permanent, with a confirm.
+- **Challan photo kept** with the lot (a ~1100px JPEG, stored in Redis) so it can be checked against the paper.
+- **Free WhatsApp links:** Send on WhatsApp (status link) and Nudge on WhatsApp (reminder text) open WhatsApp with the message typed in. No Meta account needed.
+- **Optional owner passcode** (`OWNER_PASSCODE`): locks the owner side; job worker links stay open.
+- **Optional WhatsApp automation** (off by default): a simulator and a Meta Cloud API path for replies and reminders. See [WhatsApp automation](#whatsapp-automation-optional-off-by-default).
 
 ## How it works
 ```
 Phone browser ──► Next.js on Vercel
-                    ├─ /api/extract ──► Gemini via OpenRouter (reads the photo, returns 4 fields)   lib/ai.ts
-                    └─ /api/lots    ──► Upstash Redis (one hash: token -> lot)                       lib/store.ts
+                    ├─ /api/extract ──► Gemini via OpenRouter (reads the photo)      lib/ai.ts
+                    └─ /api/lots/*  ──► Upstash Redis (lots, photos, worker numbers)  lib/store.ts
 ```
-- **AI does one job:** reading the challan photo (`lib/ai.ts`, `google/gemini-3.7-flash` through OpenRouter, pinned to Google). Everything else is plain rules in `lib/lots.ts`: checking fields, overdue, days out, the 4 allowed statuses and link tokens.
-- **Staff always confirm.** Unclear fields are tagged, missing required fields turn red, and Save stays blocked until they're filled.
-- **Status links** (`/s/<token>`) use a random 16-character token. No login and no app to install.
-- **The WhatsApp message** is a `wa.me` link with the text pre-filled. No WhatsApp Business API.
-- **Storage:** an earlier version saved lots to Google Sheets through n8n. That was replaced by Redis because the hosted n8n couldn't reach Google reliably. The old workflow is in git history.
-
-## WhatsApp reminders (Meta Cloud API, free test number)
-- Each lot needs the job worker's WhatsApp number (required on the lot card; read from the challan when written, and remembered per job worker name). The browser never receives the number.
-- **Remind now** on the board sends one reminder (one per hour per lot at most). A daily Vercel Cron (`vercel.json`, 03:30 UTC = 09:00 IST) reminds lots due today or overdue, once a day each.
-- Reminders are a WhatsApp **template** (business-started messages must be). Create this UTILITY template in WhatsApp Manager, name `lot_reminder`, language English:
-  `Reminder: your {{1}} lot of {{2}} is due on {{3}}. Please tap your current status here: {{4}} Thank you.`
-  Sample values: `dyeing`, `1200 metres`, `28/10/2026`, `https://kaamtrack-khaki.vercel.app/s/abc123`.
-- The Meta **test number** is free but can only message up to 5 phones you add and verify in Meta's API Setup page. Its templates can't be reused on a real number.
-- Costs: utility templates are free inside a 24-hour customer-service window (opened when the job worker messages the number first); outside it Meta bills per message. Check Meta's rate card.
+Plain rules (validation, overdue, filters, phones, edit) live in `lib/lots.ts`, with tests in `tests/`. The AI does one job only: reading the challan.
 
 ## Run it
-1. Copy `.env.example` to `.env.local` and fill in the values. Never commit `.env.local`.
-2. Create the database: in Vercel, open your project → Storage → add **Upstash Redis**. Copy its REST URL and token into `.env.local`.
-3. Run these:
-   - `npm install`
-   - `npm run dev`, then open http://localhost:3000
+1. Copy `.env.example` to `.env.local` and fill it in. Never commit `.env.local`.
+2. Database: in Vercel, add **Upstash Redis** to the project (Storage tab); copy its REST URL and token into `.env.local`.
+3. `npm install`, then `npm run dev` and open http://localhost:3000.
 
 ## Checks
-- `npm test`: rule checks (cleaning AI output, required fields, overdue, statuses).
-- `npm run eval`: runs the AI prompt on every photo in `test-challans/` against `expected.json`, printing field accuracy and seconds per photo.
+| Command | What it does |
+|---|---|
+| `npm test` | Rule tests (cleaning AI output, phones, overdue, filters, edit, passcode paths, reply logic, webhook signature). |
+| `npx tsc --noEmit` | Type check (run `npx next typegen` first after adding routes). |
+| `npm run smoke -- <url>` | Replays the live checks against a running copy (save, board, status tap, edit, nudge, photo, delete). Cleans up its own lots. Set `OWNER_PASSCODE` in the shell if the passcode is on. |
+| `npm run eval` | Runs the AI prompt on `test-challans/` against `expected.json` (accuracy and seconds per photo). |
 
-## Out of scope for the MVP
-WhatsApp Business API and auto nudges, voice notes, wastage norms, logins and roles, Gujarati UI, Tally/GST ITC-04.
+GitHub Actions (`.github/workflows/ci.yml`) runs types, tests and a production build on every push.
+
+## Settings (environment variables)
+| Name | Needed? | What it is |
+|---|---|---|
+| `OPENROUTER_API_KEY` | yes | Reads challans. |
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | yes | Redis (added by Vercel's Upstash integration; `UPSTASH_REDIS_REST_*` also works). |
+| `OWNER_PASSCODE` | no | Set to lock the owner side. Empty = open. |
+| `WHATSAPP_MODE` | no | `off` (default), `mock`, or `meta`. |
+| `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_TEMPLATE`, `WHATSAPP_LANG` | only for `meta` | Meta Cloud API. |
+| `CRON_SECRET` | only for `meta`/`mock` | Lets Vercel's daily job (`vercel.json`) call `/api/cron/remind`. |
+
+## Runbook
+- **Rotate a key:** change it in Vercel → Settings → Environment Variables, then redeploy (env changes apply to new deployments only).
+- **Lock the board:** set `OWNER_PASSCODE` in Vercel, redeploy. Sign-in is at `/login`. Unset it to open the board again.
+- **Preview deployments** are behind Vercel's login and use their own Redis keys (`kaamtrack-preview:*`), so testing never touches real lots.
+- **Photo storage:** one small JPEG per lot, about 100-300 KB, in Redis. Upstash's free plan has 256 MB, so roughly a thousand lots. Delete a lot and its photo goes too.
+- **Redis free limits:** 500k commands a month. The board reads once every 10 s per open tab while visible.
+- **Old lots without a number** can't use Nudge; open them with Edit and add one.
+
+## WhatsApp automation (optional, off by default)
+Set `WHATSAPP_MODE=mock` to see a **simulated** conversation per lot (Send reminder now, the job worker's replies "1-4" or words like "ho gaya", the app's answers, delivery ticks) with nothing leaving the app. `/whatsapp` explains the whole flow.
+For real WhatsApp: set `WHATSAPP_MODE=meta` with the Meta keys, point Meta's webhook at `/api/whatsapp/webhook`, and get the reminder text (`REMINDER_TEMPLATE` in `lib/lots.ts`) approved as a utility template. The test number only reaches up to 5 phones you add; utility templates are free inside the 24-hour window a job worker opens by messaging first.
+
+## Not built yet
+Return and shortage entry, a job worker scorecard, Gujarati/Hindi screens, ITC-04 export, several lots on one challan, multiple owners and roles.
