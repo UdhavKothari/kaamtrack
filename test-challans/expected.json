@@ -1,23 +1,23 @@
 ﻿{
-    "synthetic-clean.png":  {
-                                "job_worker":  "Shree Ganesh Dyeing House, Pandesara",
-                                "process":  "dyeing",
-                                "quantity":  "1200",
-                                "unit":  "metres",
-                                "promised_date":  "2026-10-28"
-                            },
-    "synthetic-cropped.png":  {
-                                  "job_worker":  "Shree Ganesh Dyeing House, Pandesara",
-                                  "process":  "dyeing",
-                                  "quantity":  "40",
-                                  "unit":  "thaan",
-                                  "promised_date":  ""
-                              },
-    "synthetic-not-challan.png":  {
-                                      "job_worker":  "",
-                                      "process":  "",
-                                      "quantity":  "",
-                                      "unit":  "metres",
-                                      "promised_date":  ""
-                                  }
+  "synthetic-clean.png": {
+    "job_worker": "Shree Ganesh Dyeing House, Pandesara",
+    "process": "dyeing",
+    "quantity": "1200",
+    "unit": "metres",
+    "promised_date": "2026-10-28"
+  },
+  "synthetic-cropped.png": {
+    "job_worker": "Shree Ganesh Dyeing House, Pandesara",
+    "process": "dyeing",
+    "quantity": "40",
+    "unit": "thaan",
+    "promised_date": ""
+  },
+  "synthetic-not-challan.png": {
+    "job_worker": "",
+    "process": "",
+    "quantity": "",
+    "unit": "metres",
+    "promised_date": ""
+  }
 }
