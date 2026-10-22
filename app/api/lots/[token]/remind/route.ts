@@ -1,8 +1,8 @@
-import { getLot, markReminded } from "@/lib/store";
+import { getLot } from "@/lib/store";
 import { minutesUntilRemindable } from "@/lib/lots";
-import { sendReminder } from "@/lib/whatsapp";
+import { remindLot } from "@/lib/conversation";
 
-// "Remind now" button: sends one WhatsApp reminder to this lot's job worker.
+// "Send reminder now": sends one WhatsApp reminder (real or simulated) and records it in the lot's timeline.
 export async function POST(req: Request, ctx: RouteContext<"/api/lots/[token]/remind">) {
   const { token } = await ctx.params;
   try {
@@ -13,8 +13,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/lots/[token]/re
     const wait = minutesUntilRemindable(lot);
     if (wait) return Response.json({ error: `Reminded recently. Try again in ${wait} min.` }, { status: 429 });
 
-    await sendReminder(lot, new URL(req.url).origin);
-    await markReminded(token, new Date().toISOString());
+    await remindLot(lot, new URL(req.url).origin);
     return Response.json({ ok: true });
   } catch (e) {
     console.error("remind failed", e);

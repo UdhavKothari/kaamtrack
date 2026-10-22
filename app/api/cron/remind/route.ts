@@ -1,6 +1,6 @@
-import { listLots, markReminded } from "@/lib/store";
+import { listLots } from "@/lib/store";
 import { dueForReminder, todayIST } from "@/lib/lots";
-import { sendReminder } from "@/lib/whatsapp";
+import { remindLot } from "@/lib/conversation";
 
 export const maxDuration = 60;
 
@@ -19,8 +19,7 @@ export async function GET(req: Request) {
   const results: { token: string; ok: boolean; error?: string }[] = [];
   for (const lot of due) {
     try {
-      await sendReminder(lot, origin);
-      await markReminded(lot.token, new Date().toISOString());
+      await remindLot(lot, origin);
       results.push({ token: lot.token, ok: true });
     } catch (e) {
       results.push({ token: lot.token, ok: false, error: e instanceof Error ? e.message : "failed" });

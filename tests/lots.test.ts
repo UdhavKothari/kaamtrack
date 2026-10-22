@@ -122,6 +122,7 @@ test("WhatsApp request: Meta template shape, the four values in order, errors su
   const lot = { ...newLot(good), token: "0123456789abcdef" };
   assert.deepEqual(reminderParams(lot, "https://x.app"), ["printing", "40 thaan", "01/11/2026", "https://x.app/s/0123456789abcdef"]);
 
+  process.env.WHATSAPP_MODE = "meta";
   process.env.WHATSAPP_TOKEN = "t";
   process.env.WHATSAPP_PHONE_NUMBER_ID = "123";
   const realFetch = globalThis.fetch;
@@ -131,7 +132,7 @@ test("WhatsApp request: Meta template shape, the four values in order, errors su
       seen = { url, init };
       return Response.json({ messages: [{ id: "wamid.1" }] });
     }) as typeof fetch;
-    assert.equal(await sendReminder(lot, "https://x.app"), "wamid.1");
+    assert.deepEqual(await sendReminder(lot, "https://x.app"), { id: "wamid.1", provider: "meta" });
     assert.match(seen!.url, /graph\.facebook\.com\/v\d+\.\d+\/123\/messages$/);
     const body = JSON.parse(String(seen!.init.body));
     assert.equal(body.to, "+919876543210");
@@ -143,5 +144,8 @@ test("WhatsApp request: Meta template shape, the four values in order, errors su
     await assert.rejects(sendReminder(lot, "https://x.app"), /not in allowed list/);
   } finally {
     globalThis.fetch = realFetch;
+    delete process.env.WHATSAPP_MODE;
   }
+  // default mode is the simulator: nothing is sent
+  assert.equal((await sendReminder(lot, "https://x.app")).provider, "mock");
 });

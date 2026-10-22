@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { missingFields, PROCESSES, showDate, UNITS, whatsappLink, type LotForm, type PublicLot } from "@/lib/lots";
 import { CameraIcon, StatusIcon } from "./StatusIcon";
+import WhatsAppTimeline from "./WhatsAppTimeline";
 
 type BoardLot = PublicLot & { overdue: boolean; days_out: number; can_auto_remind: boolean };
 
@@ -39,6 +40,7 @@ export default function Home() {
   const [boardError, setBoardError] = useState("");
   const [copied, setCopied] = useState("");
   const [reminding, setReminding] = useState("");
+  const [openChat, setOpenChat] = useState("");
   const [remindNote, setRemindNote] = useState<{ token: string; text: string } | null>(null);
 
   async function remind(token: string) {
@@ -49,6 +51,7 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setRemindNote({ token, text: "Reminder sent on WhatsApp ✓" });
+      setOpenChat(token); // show the conversation so the reminder is visible straight away
       loadLots();
     } catch (e) {
       setRemindNote({ token, text: e instanceof Error && e.message ? e.message : "Couldn't send the reminder." });
@@ -182,7 +185,7 @@ export default function Home() {
     <main>
       <header>
         <h1>KaamTrack</h1>
-        <p className="muted">Challan photo in, tracked lot out.</p>
+        <p className="muted">Challan photo in, tracked lot out. <a href="/whatsapp">How WhatsApp works here</a></p>
       </header>
 
       <section className="panel">
@@ -284,6 +287,11 @@ export default function Home() {
                     {reminding === l.token ? "Sending…" : "Send reminder now"}
                   </button>
                 )}
+                {l.has_phone && (
+                  <button className="button small" onClick={() => setOpenChat((c) => (c === l.token ? "" : l.token))} aria-expanded={openChat === l.token}>
+                    {openChat === l.token ? "Hide WhatsApp" : "WhatsApp"}
+                  </button>
+                )}
               </div>
               {l.last_reminded_at && (
                 <span className="muted small">
@@ -291,6 +299,7 @@ export default function Home() {
                 </span>
               )}
               {remindNote?.token === l.token && <span className="small" role="status">{remindNote.text}</span>}
+              {openChat === l.token && <WhatsAppTimeline token={l.token} onChanged={loadLots} />}
             </li>
           ))}
         </ul>

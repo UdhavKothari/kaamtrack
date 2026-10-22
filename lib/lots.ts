@@ -187,6 +187,17 @@ export const reminderParams = (lot: Pick<Lot, "token" | "quantity" | "unit" | "p
   `${origin}/s/${lot.token}`,
 ];
 
+// The approved WhatsApp template, with {{n}} slots. Meta needs this exact text approved in WhatsApp Manager;
+// the simulator shows the same text, so what you see here is what a job worker will get.
+export const REMINDER_TEMPLATE =
+  "Reminder: your {{1}} lot of {{2}} is due on {{3}}. Please tap your current status here: {{4}} Or reply 1 Received, 2 In process, 3 Ready, 4 Dispatched. Thank you.";
+
+export const renderTemplate = (template: string, params: string[]) =>
+  template.replace(/\{\{(\d)\}\}/g, (_, n) => params[Number(n) - 1] ?? "");
+
+export const reminderMessage = (lot: Pick<Lot, "token" | "quantity" | "unit" | "process" | "promised_date">, origin: string) =>
+  renderTemplate(REMINDER_TEMPLATE, reminderParams(lot, origin));
+
 // Minutes to wait before this lot may be reminded again (0 = go ahead). Stops anyone spamming a job worker.
 export function minutesUntilRemindable(lot: Pick<Lot, "last_reminded_at">, now = new Date()) {
   if (!lot.last_reminded_at) return 0;
