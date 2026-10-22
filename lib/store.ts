@@ -3,6 +3,7 @@
 // move each lot to its own Redis hash (one field per value) if two writers ever race.
 import { isToken, rowsToLots, type Lot } from "./lots.ts";
 import type { Msg, NewMsg } from "./inbound.ts";
+import { clientIp } from "./owner.ts";
 
 // Production and local runs use the "kaamtrack" keys; Vercel preview deployments get their own, so testing a
 // preview never touches real lots.
@@ -69,6 +70,24 @@ export async function setStatus(token: string, status: string, at: string): Prom
   const next = { ...lot, status, status_updated_at: at };
   await saveLot(next);
   return next;
+}
+
+// Counts one action for `key` in a fixed window; true once it goes over `limit`. Used to stop spam and guessing.
+export async function rateLimited(key: string, limit: number, windowSec: number): Promise<boolean> {
+  const k = `${NS}:rl:${key}`;
+  const n = Number(await redis("INCR", k));
+  if (n === 1) await redis("EXPIRE", k, String(windowSec));
+  return n > limit;
+}
+
+// For routes: true when this caller is over the limit. If Redis hiccups it lets the request through rather than blocking work.
+export async function overLimit(req: Request, bucket: string, limit: number, windowSec: number): Promise<boolean> {
+  try {
+    return await rateLimited(`${bucket}:${clientIp(req)}`, limit, windowSec);
+  } catch (e) {
+    console.error("rate limit check failed", e);
+    return false;
+  }
 }
 
 // ---- WhatsApp conversation log: newest 50 messages per lot ----

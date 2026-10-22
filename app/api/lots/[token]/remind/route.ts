@@ -1,10 +1,11 @@
-import { getLot } from "@/lib/store";
+import { getLot, overLimit } from "@/lib/store";
 import { minutesUntilRemindable } from "@/lib/lots";
 import { remindLot } from "@/lib/conversation";
 
 // "Send reminder now": sends one WhatsApp reminder (real or simulated) and records it in the lot's timeline.
 export async function POST(req: Request, ctx: RouteContext<"/api/lots/[token]/remind">) {
   const { token } = await ctx.params;
+  if (await overLimit(req, "remind", 60, 3600)) return Response.json({ error: "Too many reminders this hour." }, { status: 429 });
   try {
     const lot = await getLot(token);
     if (!lot) return Response.json({ error: "Lot not found" }, { status: 404 });

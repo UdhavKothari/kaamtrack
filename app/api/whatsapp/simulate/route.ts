@@ -1,4 +1,4 @@
-import { getLot } from "@/lib/store";
+import { getLot, overLimit } from "@/lib/store";
 import { processInbound } from "@/lib/conversation";
 import { whatsappMode } from "@/lib/whatsapp";
 
@@ -6,6 +6,8 @@ import { whatsappMode } from "@/lib/whatsapp";
 // Only available while simulating; the number is looked up here so the browser never sees it.
 export async function POST(req: Request) {
   if (whatsappMode() !== "mock") return Response.json({ error: "The simulator is off when real WhatsApp is on." }, { status: 403 });
+
+  if (await overLimit(req, "simulate", 120, 3600)) return Response.json({ error: "Too many replies this hour." }, { status: 429 });
 
   const { token, text } = (await req.json().catch(() => ({}))) as { token?: string; text?: string };
   if (!token || typeof text !== "string" || !text.trim() || text.length > 500) {

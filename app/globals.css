@@ -95,9 +95,9 @@ h2 { font-size: 1.15rem; margin: 28px 0 10px; }
 .bubble.in { justify-self: start; background: #fff; border: 1px solid var(--line); border-bottom-left-radius: 4px; }
 .bubble-meta { font-size: 0.75rem; color: var(--muted); }
 .bubble-meta em { font-style: normal; color: var(--red); }
-.tick.delivered, .tick.read { color: #1f6b43; }
-.tick.sent { color: var(--muted); }
-.tick.failed { color: var(--red); }
+.bubble-meta .tick.delivered, .bubble-meta .tick.read { color: #1f6b43; }
+.bubble-meta .tick.sent { color: var(--muted); }
+.bubble-meta .tick.failed { color: var(--red); }
 .wa-note { margin: 0; justify-self: center; font-size: 0.8rem; color: var(--muted); background: #ecebe7; padding: 3px 10px; border-radius: 999px; text-align: center; }
 .wa-sim { display: grid; gap: 8px; }
 .wa-sim input { flex: 1; min-width: 0; min-height: 44px; padding: 0 10px; font: inherit; border: 1px solid var(--line); border-radius: 8px; }

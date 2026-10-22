@@ -1,4 +1,5 @@
 import { readChallan } from "@/lib/ai";
+import { overLimit } from "@/lib/store";
 import { cleanExtraction, todayIST } from "@/lib/lots";
 
 export const maxDuration = 30;
@@ -6,6 +7,10 @@ export const maxDuration = 30;
 const MAX_BYTES = 4 * 1024 * 1024;
 
 export async function POST(req: Request) {
+  if (await overLimit(req, "extract", 60, 3600)) {
+    return Response.json({ error: "Too many photos this hour. Try again later." }, { status: 429 });
+  }
+
   const form = await req.formData().catch(() => null);
   const photo = form?.get("photo");
   if (!(photo instanceof File) || !photo.type.startsWith("image/")) {
