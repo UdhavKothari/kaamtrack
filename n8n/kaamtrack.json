@@ -29,7 +29,7 @@
     {
       "parameters": {
         "operation": "append",
-        "documentId": { "__rl": true, "mode": "url", "value": "" },
+        "documentId": { "__rl": true, "mode": "url", "value": "https://docs.google.com/spreadsheets/d/1SlMhhZbyU_-mncyACZvsUGo0AVyOGkE4fRi6KoTsszg/edit" },
         "sheetName": { "__rl": true, "mode": "name", "value": "lots" },
         "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
         "options": { "cellFormat": "RAW" }
@@ -68,7 +68,7 @@
     {
       "parameters": {
         "operation": "update",
-        "documentId": { "__rl": true, "mode": "url", "value": "" },
+        "documentId": { "__rl": true, "mode": "url", "value": "https://docs.google.com/spreadsheets/d/1SlMhhZbyU_-mncyACZvsUGo0AVyOGkE4fRi6KoTsszg/edit" },
         "sheetName": { "__rl": true, "mode": "name", "value": "lots" },
         "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": ["token"], "schema": [] },
         "options": { "cellFormat": "RAW" }
@@ -98,7 +98,7 @@
     {
       "parameters": {
         "operation": "read",
-        "documentId": { "__rl": true, "mode": "url", "value": "" },
+        "documentId": { "__rl": true, "mode": "url", "value": "https://docs.google.com/spreadsheets/d/1SlMhhZbyU_-mncyACZvsUGo0AVyOGkE4fRi6KoTsszg/edit" },
         "sheetName": { "__rl": true, "mode": "name", "value": "lots" },
         "options": {}
       },
