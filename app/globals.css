@@ -1,49 +1,72 @@
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #f6f5f2;
+  --panel: #ffffff;
+  --text: #1c1b19;
+  --muted: #6b6862;
+  --line: #dedbd4;
+  --accent: #1f5f4a;
+  --red: #c62828;
+  --red-bg: #fdecea;
+  --amber: #8a5a00;
+  --amber-bg: #fff4d6;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-html {
-  height: 100%;
-}
-
-html,
+* { box-sizing: border-box; }
 body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
-body {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-* {
-  box-sizing: border-box;
-  padding: 0;
   margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
+main { max-width: 900px; margin: 0 auto; padding: 16px; }
+h1 { margin: 0; font-size: 1.6rem; }
+h2 { font-size: 1.15rem; margin: 28px 0 10px; }
+.muted { color: var(--muted); }
+.small { font-size: 0.85rem; }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-top: 16px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+.button {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; padding: 0 16px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--text);
+  font: inherit; font-weight: 600; cursor: pointer; text-decoration: none;
 }
+.button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.button.small { min-height: 36px; padding: 0 12px; font-size: 0.85rem; }
+.button.big { min-height: 64px; font-size: 1.1rem; }
+.button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.reading { font-weight: 600; color: var(--accent); }
+.notice { background: var(--amber-bg); color: var(--amber); padding: 10px 12px; border-radius: 8px; }
+.done { color: var(--accent); font-weight: 700; font-size: 1.1rem; }
+
+.capture { display: grid; gap: 16px; margin-top: 16px; }
+@media (min-width: 720px) { .capture { grid-template-columns: 1fr 1fr; } }
+.photo { width: 100%; max-height: 520px; object-fit: contain; border-radius: 8px; border: 1px solid var(--line); background: #eee; }
+
+.card { display: grid; gap: 12px; align-content: start; }
+.field { display: grid; gap: 4px; font-weight: 600; font-size: 0.9rem; }
+.field input, .field select {
+  width: 100%; min-height: 44px; padding: 0 10px; font: inherit; font-weight: 400;
+  border: 1px solid var(--line); border-radius: 8px; background: #fff;
+}
+.field .row input { flex: 1; width: auto; }
+.field .row select { width: auto; }
+.field.missing input, .field.missing select { border: 2px solid var(--red); background: var(--red-bg); }
+.tag { font-style: normal; font-size: 0.75rem; background: var(--amber-bg); color: var(--amber); padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
+.req { font-style: normal; font-size: 0.75rem; color: var(--red); margin-left: 6px; }
+
+.board { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.lot { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 6px; }
+.lot.overdue { border: 2px solid var(--red); background: var(--red-bg); }
+.lot.overdue strong { color: var(--red); }
+.lot-main { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.status { justify-self: start; font-size: 0.8rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: #ecebe7; }
+.s-received { background: #e3effd; color: #1a4f8b; }
+.s-inprocess { background: var(--amber-bg); color: var(--amber); }
+.s-ready { background: #e2f4ea; color: #1f6b43; }
+.s-dispatched { background: #1f5f4a; color: #fff; }
+
+.worker .status-buttons { display: grid; gap: 10px; }

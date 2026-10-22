@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "node --test \"tests/*.test.ts\"",
+    "eval": "node --env-file=.env.local scripts/eval.mjs"
   },
   "dependencies": {
     "next": "16.4.2",
