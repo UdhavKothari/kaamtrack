@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   cleanExtraction, daysOut, dueForReminder, isOverdue, isToken, minutesUntilRemindable, missingFields, newLot,
-  normalizePhone, publicLot, reminderParams, rowsToLots, showDate, STATUSES,
+  normalizePhone, nudgeLink, publicLot, reminderParams, rowsToLots, showDate, STATUSES,
 } from "../lib/lots.ts";
 import { sendReminder } from "../lib/whatsapp.ts";
 
@@ -99,6 +99,16 @@ test("reminders: due today or late, once a day, needs a number, never when dispa
   assert.equal(dueForReminder({ ...lot, phone: "" }, "2026-11-05"), false);
   assert.equal(dueForReminder({ ...lot, last_reminded_at: "2026-11-05T04:00:00.000Z" }, "2026-11-05"), false);
   assert.equal(dueForReminder({ ...lot, last_reminded_at: "2026-11-04T04:00:00.000Z" }, "2026-11-05"), true);
+});
+
+test("nudge link opens the worker's chat with the reminder already typed", () => {
+  const lot = { ...newLot(good), token: "0123456789abcdef" };
+  const url = nudgeLink(lot, "https://x.app");
+  assert.ok(url.startsWith("https://wa.me/919876543210?text="));
+  assert.equal(
+    decodeURIComponent(url.split("?text=")[1]),
+    "Reminder: your printing lot of 40 thaan is due on 01/11/2026. Please tap your current status here: https://x.app/s/0123456789abcdef Thank you.",
+  );
 });
 
 test("Remind now has a one-hour cooldown", () => {

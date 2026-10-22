@@ -169,6 +169,16 @@ export function whatsappLink(lot: Pick<Lot, "token" | "quantity" | "unit" | "pro
 
 export const REMIND_COOLDOWN_MS = 60 * 60 * 1000;
 
+// The reminder as plain text, worded like the Meta template so both routes say the same thing.
+export const reminderText = (lot: Pick<Lot, "token" | "quantity" | "unit" | "process" | "promised_date">, origin: string) => {
+  const [process, quantity, date, link] = reminderParams(lot, origin);
+  return `Reminder: your ${process} lot of ${quantity} is due on ${date}. Please tap your current status here: ${link} Thank you.`;
+};
+
+// Free route: a wa.me link that opens this job worker's chat with the reminder typed in; the owner taps Send.
+export const nudgeLink = (lot: Pick<Lot, "token" | "phone" | "quantity" | "unit" | "process" | "promised_date">, origin: string) =>
+  `https://wa.me/${lot.phone}?text=${encodeURIComponent(reminderText(lot, origin))}`;
+
 // The four values filled into the WhatsApp template, in order.
 export const reminderParams = (lot: Pick<Lot, "token" | "quantity" | "unit" | "process" | "promised_date">, origin: string) => [
   lot.process,

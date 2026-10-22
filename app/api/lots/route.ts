@@ -1,11 +1,12 @@
 import { listLots, rememberWorker, saveLot } from "@/lib/store";
+import { whatsappReady } from "@/lib/whatsapp";
 import { daysOut, isOverdue, missingFields, newLot, publicLot, todayIST, type LotForm } from "@/lib/lots";
 
 export async function GET() {
   try {
     const today = todayIST();
     const lots = (await listLots())
-      .map((l) => ({ ...publicLot(l), overdue: isOverdue(l, today), days_out: daysOut(l, today) }))
+      .map((l) => ({ ...publicLot(l), overdue: isOverdue(l, today), days_out: daysOut(l, today), can_auto_remind: whatsappReady() }))
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
     return Response.json(lots);
   } catch (e) {

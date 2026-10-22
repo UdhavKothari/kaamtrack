@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { missingFields, PROCESSES, showDate, UNITS, whatsappLink, type LotForm, type PublicLot } from "@/lib/lots";
 import { CameraIcon, StatusIcon } from "./StatusIcon";
 
-type BoardLot = PublicLot & { overdue: boolean; days_out: number };
+type BoardLot = PublicLot & { overdue: boolean; days_out: number; can_auto_remind: boolean };
 
 const EMPTY: LotForm = { job_worker: "", phone: "", process: "", quantity: "", unit: "metres", promised_date: "" };
 const LABELS: Record<keyof LotForm, string> = {
@@ -54,6 +54,22 @@ export default function Home() {
       setRemindNote({ token, text: e instanceof Error && e.message ? e.message : "Couldn't send the reminder." });
     } finally {
       setReminding("");
+    }
+  }
+
+  // Free route: opens this job worker's WhatsApp chat with the reminder typed in; the owner taps Send.
+  async function nudge(token: string) {
+    const tab = window.open("", "_blank"); // opened first, inside the tap, so the browser doesn't block it
+    setRemindNote(null);
+    try {
+      const res = await fetch(`/api/lots/${token}/nudge`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      if (tab) tab.location.href = data.url;
+      else window.location.href = data.url;
+    } catch (e) {
+      tab?.close();
+      setRemindNote({ token, text: e instanceof Error && e.message ? e.message : "Couldn't open WhatsApp." });
     }
   }
 
@@ -259,8 +275,13 @@ export default function Home() {
                   {copied === l.token ? "Copied ✓" : "Copy link"}
                 </button>
                 {l.has_phone && l.status !== "Dispatched" && (
+                  <button className="button small" onClick={() => nudge(l.token)}>
+                    Nudge on WhatsApp
+                  </button>
+                )}
+                {l.has_phone && l.can_auto_remind && l.status !== "Dispatched" && (
                   <button className="button small" onClick={() => remind(l.token)} disabled={reminding === l.token}>
-                    {reminding === l.token ? "Sending…" : "Remind now"}
+                    {reminding === l.token ? "Sending…" : "Send reminder now"}
                   </button>
                 )}
               </div>

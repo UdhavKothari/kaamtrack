@@ -4,6 +4,9 @@ import { reminderParams, type Lot } from "./lots.ts";
 
 const API = "https://graph.facebook.com/v26.0";
 
+// True once the Meta token and test/real number are configured; the board only offers automatic sending then.
+export const whatsappReady = () => !!(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
+
 export async function sendReminder(lot: Lot, origin: string): Promise<string> {
   const token = process.env.WHATSAPP_TOKEN;
   const numberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
