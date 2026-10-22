@@ -1,7 +1,7 @@
 // The only AI call in KaamTrack: read a challan photo and return raw fields.
-// To switch to Claude later, replace readChallan's body; the rest of the app stays the same.
+// Goes through OpenRouter, pinned to Google's own infrastructure. To switch models, change MODEL.
 
-const MODEL = "gemini-2.5-flash";
+const MODEL = "google/gemini-3.7-flash";
 
 export function challanPrompt(today: string) {
   return `You read photos of paper job-work challans from textile businesses in Surat, India.
@@ -19,41 +19,60 @@ Return only what is actually written. Never guess. If a field is missing, cut of
 - unclear_fields: names of any fields above you were not confident about.`;
 }
 
+const nullable = (type: string, extra = {}) => ({ type: [type, "null"], ...extra });
+
 const schema = {
-  type: "OBJECT",
+  type: "object",
   properties: {
-    is_challan: { type: "BOOLEAN" },
-    job_worker: { type: "STRING", nullable: true },
-    process: { type: "STRING", nullable: true, enum: ["dyeing", "printing", "embroidery", "other"] },
-    quantity: { type: "NUMBER", nullable: true },
-    unit: { type: "STRING", nullable: true, enum: ["metres", "thaan"] },
-    promised_date: { type: "STRING", nullable: true },
-    unclear_fields: { type: "ARRAY", items: { type: "STRING" } },
+    is_challan: { type: "boolean" },
+    job_worker: nullable("string"),
+    process: nullable("string", { enum: ["dyeing", "printing", "embroidery", "other", null] }),
+    quantity: nullable("number"),
+    unit: nullable("string", { enum: ["metres", "thaan", null] }),
+    promised_date: nullable("string"),
+    unclear_fields: { type: "array", items: { type: "string" } },
   },
   required: ["is_challan", "job_worker", "process", "quantity", "unit", "promised_date", "unclear_fields"],
+  additionalProperties: false,
 };
 
 export async function readChallan(imageBase64: string, mimeType: string, today: string): Promise<unknown> {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) throw new Error("GEMINI_API_KEY is not set");
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) throw new Error("OPENROUTER_API_KEY is not set");
 
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: challanPrompt(today) }, { inline_data: { mime_type: mimeType, data: imageBase64 } }] }],
-      generationConfig: {
-        temperature: 0,
-        responseMimeType: "application/json",
-        responseSchema: schema,
-        thinkingConfig: { thinkingBudget: 0 }, // speed: the 10-second test matters more than deep reasoning
+  const body = JSON.stringify({
+    model: MODEL,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: challanPrompt(today) },
+          { type: "image_url", image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+        ],
       },
-    }),
-    signal: AbortSignal.timeout(20_000),
+    ],
+    response_format: { type: "json_schema", json_schema: { name: "challan", strict: true, schema } },
+    reasoning: { effort: "minimal" }, // speed: the 10-second test matters more than deep reasoning
+    temperature: 0,
+    provider: { only: ["google-vertex", "google-ai-studio"], allow_fallbacks: false },
   });
-  if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 300)}`);
 
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  return text ? JSON.parse(text) : {};
+  // Retry rate limits and server errors with backoff (1s, 2s, 4s); stop at once on anything else.
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body,
+      signal: AbortSignal.timeout(20_000),
+    });
+    if ((res.status === 429 || res.status >= 500) && attempt < 3) {
+      await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+      continue;
+    }
+    if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${(await res.text()).slice(0, 300)}`);
+
+    const data = await res.json();
+    const text = data?.choices?.[0]?.message?.content;
+    return text ? JSON.parse(text) : {};
+  }
 }
