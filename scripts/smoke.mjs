@@ -1,6 +1,7 @@
 // Replays the checks we used to run by hand, against a running copy of the app. Cleans up after itself.
 //   node scripts/smoke.mjs [baseUrl]      (default http://localhost:3000, or set BASE_URL)
-// If the app has OWNER_PASSCODE switched on, set the same OWNER_PASSCODE in this shell so the script can sign in.
+// If Google sign-in is on, set GOOGLE_CLIENT_SECRET and OWNER_EMAILS in this shell (as in Vercel) so the script can make its own session.
+import { signSession } from "../lib/owner.ts";
 const BASE = (process.argv[2] ?? process.env.BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 // A real, tiny JPEG (1x1 pixel) to stand in for a challan photo.
 const TINY_JPEG =
@@ -19,7 +20,7 @@ async function call(method, path, body) {
   const text = await res.text();
   let json = null;
   try { json = JSON.parse(text); } catch { /* not JSON (an image or a page) */ }
-  return { status: res.status, json, text, type: res.headers.get("content-type") ?? "", setCookie: res.headers.get("set-cookie") ?? "" };
+  return { status: res.status, json, text, type: res.headers.get("content-type") ?? "", setCookie: res.headers.get("set-cookie") ?? "", location: res.headers.get("location") ?? "" };
 }
 
 function check(name, ok, detail = "") {
@@ -31,10 +32,19 @@ const lot = { job_worker: "SMOKE TEST dyers", phone: "90000 00099", process: "dy
 const tokens = [];
 
 try {
-  if (process.env.OWNER_PASSCODE) {
-    const r = await call("POST", "/api/login", { passcode: process.env.OWNER_PASSCODE });
-    cookie = r.setCookie.split(";")[0];
-    check("sign in with the owner passcode", r.status === 200 && cookie.startsWith("kt_owner="), `status ${r.status}`);
+  const signedIn = !!(process.env.GOOGLE_CLIENT_SECRET && process.env.OWNER_EMAILS);
+  if (signedIn) {
+    // Same cookie the Google sign-in sets, for the first owner email. Needs the same secret as the site.
+    cookie = `kt_owner=${await signSession(process.env.OWNER_EMAILS.split(",")[0].trim(), process.env.GOOGLE_CLIENT_SECRET.trim())}`;
+    check("signed-in session is accepted", (await call("GET", "/api/lots")).status === 200);
+    const google = await call("GET", "/api/auth/google");
+    const who = "smoke-test@example.com";
+    const added = await call("POST", "/api/settings", { email: who });
+    check("an admin can add an account in Settings", added.status === 200 && added.json?.staff?.includes(who), `status ${added.status}`);
+    const removed = await call("DELETE", "/api/settings", { email: who });
+    check("an admin can remove it again", removed.status === 200 && !removed.json?.staff?.includes(who), `status ${removed.status}`);
+    check("Settings refuses something that isn't an email", (await call("POST", "/api/settings", { email: "not an email" })).status === 400);
+    check("Sign in with Google goes to Google's account chooser", google.status === 302 && google.location.startsWith("https://accounts.google.com/"), `${google.status} ${google.location.slice(0, 40)}`);
   }
 
   // Saving a lot: required fields and phone rules
@@ -82,12 +92,15 @@ try {
   if (evil.json?.token) tokens.push(evil.json.token);
   check("a non-JPEG photo is ignored, the lot still saves", evil.status === 200 && evil.json?.has_photo === false);
 
-  // Passcode (only when it is on)
-  if (process.env.OWNER_PASSCODE) {
+  // Sign-in (only when it is on)
+  if (signedIn) {
     const saved = cookie;
     cookie = "";
-    check("without the passcode the board API is locked", (await call("GET", "/api/lots")).status === 401);
-    check("without the passcode the worker link still works", (await call("GET", `/api/lots/${token}`)).status === 200);
+    check("signed out, the board API is locked", (await call("GET", "/api/lots")).status === 401);
+    check("signed out, the board page goes to sign-in", (await call("GET", "/")).location.includes("/login"));
+    check("signed out, the worker link still works", (await call("GET", `/api/lots/${token}`)).status === 200);
+    cookie = "kt_owner=" + saved.slice(9).replace(/:[0-9a-f]+$/, ":" + "0".repeat(64));
+    check("a forged session is refused", (await call("GET", "/api/lots")).status === 401);
     cookie = saved;
   }
 } catch (e) {

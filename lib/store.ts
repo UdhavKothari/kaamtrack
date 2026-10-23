@@ -76,6 +76,13 @@ export async function deleteLot(token: string): Promise<boolean> {
   return removed > 0;
 }
 
+// ---- Who may sign in (besides the admins in OWNER_EMAILS): managed on the Settings page ----
+const ALLOWED = `${NS}:allowed`;
+export const allowedEmails = async () => ((await redis("SMEMBERS", ALLOWED)) as string[]).sort();
+export const isOnAllowedList = async (email: string) => Number(await redis("SISMEMBER", ALLOWED, email)) === 1;
+export const addAllowed = async (email: string) => { await redis("SADD", ALLOWED, email); };
+export const removeAllowed = async (email: string) => { await redis("SREM", ALLOWED, email); };
+
 // Job workers' numbers are remembered by lowercase name, so staff type each number once.
 export async function rememberWorker(name: string, phone: string): Promise<void> {
   await redis("HSET", WORKERS, name.trim().toLowerCase(), phone);

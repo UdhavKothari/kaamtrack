@@ -200,3 +200,8 @@ header p { margin: 2px 0 0; }
 @media (min-width: 720px) { .sheet { margin: auto; border-radius: 16px; } }
 @media (prefers-reduced-motion: reduce) { .chev { transition: none; } }
 .stage .status { white-space: nowrap; padding: 3px 6px; gap: 4px; font-size: 0.75rem; }
+.top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.people { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 8px; }
+.people li { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 52px; padding: 4px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow-wrap: anywhere; }
+.top .row { flex-wrap: nowrap; }
+.top .button { white-space: nowrap; }

@@ -264,9 +264,15 @@ export default function Home() {
 
   return (
     <main className="wide">
-      <header>
-        <h1>KaamTrack</h1>
-        <p className="muted">Every lot, where it is today.</p>
+      <header className="top">
+        <div>
+          <h1>KaamTrack</h1>
+          <p className="muted">Every lot, where it is today.</p>
+        </div>
+        <form method="post" action="/api/auth/logout" className="row">
+          <a className="button small" href="/settings">Settings</a>
+          <button className="button small">Sign out</button>
+        </form>
       </header>
 
       {showCapture && (
