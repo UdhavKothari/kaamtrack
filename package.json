@@ -8,10 +8,11 @@
     "start": "next start",
     "test": "node --test \"tests/*.test.ts\"",
     "smoke": "node scripts/smoke.mjs",
-    "eval":"node --env-file=.env.local scripts/eval.mjs"
+    "eval": "node --env-file=.env.local scripts/eval.mjs"
   },
   "dependencies": {
     "next": "16.4.2",
+    "pdfjs-dist": "^5.4.296",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },

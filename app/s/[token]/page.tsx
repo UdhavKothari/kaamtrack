@@ -111,6 +111,7 @@ function StatusPage() {
         </p>
         <p className="muted">
           {lot.facility ? `${lot.facility} · ` : ""}Job worker: {lot.job_worker} · Promised: {showDate(lot.promised_date)}
+          {lot.challan_no && <> · Challan {lot.challan_no}</>}{lot.taka > 0 && <> · {lot.taka} taka</>}
         </p>
       </div>
       <p>Tap the current status of this lot:</p>

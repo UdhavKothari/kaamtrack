@@ -5,7 +5,7 @@ import { displayState, handleInbound, parseReply, resolveLot, type Deps, type Ms
 import { newLot, REMINDER_TEMPLATE, reminderMessage, type Lot } from "../lib/lots.ts";
 import { parseWebhook, verifySignature } from "../lib/webhook.ts";
 
-const form = { job_worker: "Shree", facility: "", quality: "", phone: "98765 43210", process: "dyeing", quantity: "1200", unit: "metres", promised_date: "2026-11-01" };
+const form = { job_worker: "Shree", facility: "", quality: "", challan_no: "", taka: "", marka: "", phone: "98765 43210", process: "dyeing", quantity: "1200", unit: "metres", promised_date: "2026-11-01" };
 const mk = (over: Partial<Lot> = {}): Lot => ({ ...newLot(form), token: Math.random().toString(16).slice(2).padEnd(16, "0").slice(0, 16), ...over });
 const PHONE = "919876543210";
 

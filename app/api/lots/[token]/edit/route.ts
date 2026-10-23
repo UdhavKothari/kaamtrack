@@ -1,5 +1,5 @@
 import { getLot, rememberWorker, updateLot } from "@/lib/store";
-import { formFromLot, missingFields, publicLot, type LotForm } from "@/lib/lots";
+import { formFromLot, missingFields, publicLot, type LotForm, formFromBody } from "@/lib/lots";
 
 // Owner only (closed by the passcode proxy; only /api/lots/<token> itself is open to job workers).
 
@@ -18,16 +18,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/lots/[token]/ed
 export async function POST(req: Request, ctx: RouteContext<"/api/lots/[token]/edit">) {
   const { token } = await ctx.params;
   const body = (await req.json().catch(() => ({}))) as Partial<LotForm>;
-  const form: LotForm = {
-    job_worker: String(body.job_worker ?? ""),
-    facility: String(body.facility ?? ""),
-    phone: String(body.phone ?? ""),
-    process: String(body.process ?? ""),
-    quality: String(body.quality ?? ""),
-    quantity: String(body.quantity ?? ""),
-    unit: String(body.unit ?? ""),
-    promised_date: String(body.promised_date ?? ""),
-  };
+  const form = formFromBody(body);
   const missing = missingFields(form);
   if (missing.length) return Response.json({ error: "Missing fields", missing }, { status: 400 });
 

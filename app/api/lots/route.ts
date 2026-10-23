@@ -1,6 +1,6 @@
 import { listLots, rememberWorker, saveLot, savePhoto } from "@/lib/store";
 import { whatsappMode, whatsappReady } from "@/lib/whatsapp";
-import { daysOut, isOverdue, isStorablePhoto, missingFields, newLot, publicLot, todayIST, type LotForm } from "@/lib/lots";
+import { daysOut, isOverdue, isStorablePhoto, missingFields, newLot, publicLot, todayIST, type LotForm, formFromBody } from "@/lib/lots";
 
 export async function GET() {
   try {
@@ -17,16 +17,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as Partial<LotForm> & { photo?: unknown };
-  const form: LotForm = {
-    job_worker: String(body.job_worker ?? ""),
-    facility: String(body.facility ?? ""),
-    phone: String(body.phone ?? ""),
-    process: String(body.process ?? ""),
-    quality: String(body.quality ?? ""),
-    quantity: String(body.quantity ?? ""),
-    unit: String(body.unit ?? ""),
-    promised_date: String(body.promised_date ?? ""),
-  };
+  const form = formFromBody(body);
   const missing = missingFields(form);
   if (missing.length) return Response.json({ error: "Missing fields", missing }, { status: 400 });
 

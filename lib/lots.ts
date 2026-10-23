@@ -1,6 +1,6 @@
 // Plain rules for lots. No AI here: everything is checkable and never guesses.
 
-export const PROCESSES = ["dyeing", "printing", "embroidery", "other"];
+export const PROCESSES = ["dyeing", "printing", "embroidery", "finishing", "other"];
 // "thaan" (one roll of fabric, length varies) stays valid for old lots but the screens only offer metres and lots.
 export const UNITS = ["metres", "lots", "thaan"];
 export const LOT_METRES = 1200; // one "lot" = 1200 metres
@@ -23,6 +23,9 @@ export type LotForm = {
   quantity: string;
   unit: string;
   promised_date: string;
+  challan_no: string; // the challan's own number, e.g. ML09702/26 (optional)
+  taka: string; // number of rolls (taka / thaan) on the challan (optional)
+  marka: string; // the party / PO reference written as MARKA or REMARK (optional)
 };
 
 // A remark from the job worker: typed, or a voice note that Gemini turned into text and a short summary.
@@ -43,8 +46,11 @@ export type Lot = {
   status: string;
   status_updated_at: string;
   last_reminded_at: string;
-  has_photo: boolean; // the challan photo is kept (see savePhoto in store.ts)
+  has_photo: boolean; // the challan photo or PDF is kept (see savePhoto in store.ts)
   notes: Note[]; // newest last, at most NOTES_KEPT
+  challan_no: string;
+  taka: number; // 0 = not written
+  marka: string;
 };
 
 // A lot as the browser sees it: the phone number never leaves the server.
@@ -88,6 +94,9 @@ export function cleanExtraction(raw: unknown) {
     phone: localPhone(normalizePhone(r.job_worker_phone)),
     process: PROCESSES.includes(process) ? process : "",
     quality: str(r.quality),
+    challan_no: str(r.challan_no),
+    taka: wholeNumber(r.taka) ? String(wholeNumber(r.taka)) : "",
+    marka: str(r.marka),
     quantity: Number.isFinite(qty) && qty > 0 ? String(qty) : "",
     unit: UNITS.includes(unit) ? unit : "metres",
     promised_date: isValidDate(date) ? date : "",
@@ -96,6 +105,40 @@ export function cleanExtraction(raw: unknown) {
 
   return { isChallan: r.is_challan === true, form, unclear: [...unclear] as string[] };
 }
+
+// An image can hold more than one challan. One card each, in order; at least one card.
+export const MAX_CHALLANS = 20;
+export function cleanExtractions(raw: unknown) {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const list = Array.isArray(r.challans) ? r.challans.slice(0, MAX_CHALLANS) : [];
+  const cards = list.map((c) => {
+    const { form, unclear } = cleanExtraction({ ...(c && typeof c === "object" ? c : {}), is_challan: true });
+    return { form, unclear };
+  });
+  if (!cards.length) cards.push({ form: cleanExtraction({}).form, unclear: cleanExtraction({}).unclear });
+  return { isChallan: r.is_challan === true && list.length > 0, cards };
+}
+
+// A positive whole number from a number or a string like "12", else 0.
+const wholeNumber = (v: unknown) => {
+  const n = typeof v === "number" ? v : Number(str(v));
+  return Number.isInteger(n) && n > 0 ? n : 0;
+};
+
+// The card's values from a request body (both save and edit use it). Unknown or missing values become "".
+export const formFromBody = (b: Record<string, unknown>): LotForm => ({
+  job_worker: String(b.job_worker ?? ""),
+  facility: String(b.facility ?? ""),
+  phone: String(b.phone ?? ""),
+  process: String(b.process ?? ""),
+  quality: String(b.quality ?? ""),
+  quantity: String(b.quantity ?? ""),
+  unit: String(b.unit ?? ""),
+  promised_date: String(b.promised_date ?? ""),
+  challan_no: String(b.challan_no ?? ""),
+  taka: String(b.taka ?? ""),
+  marka: String(b.marka ?? ""),
+});
 
 // Required fields that are blank or invalid. Save is allowed only when this is empty.
 export function missingFields(f: LotForm): (keyof LotForm)[] {
@@ -139,9 +182,12 @@ const cardFields = (f: LotForm) => ({
   quantity: Number(f.quantity),
   unit: UNITS.includes(f.unit) ? f.unit : "metres",
   promised_date: f.promised_date,
+  challan_no: f.challan_no.trim().slice(0, 40),
+  taka: wholeNumber(f.taka),
+  marka: f.marka.trim().slice(0, 120),
 });
 
-// The kept challan photo must be a small JPEG data URL (the browser shrinks it to about 1100px).
+// The kept challan photo must be a small JPEG data URL (the browser shrinks it to about 1100px; a PDF page is drawn as one).
 // Upstash's free plan rejects requests over 1 MB, so stay well under.
 export const isStorablePhoto = (s: unknown): s is string => typeof s === "string" && s.length <= 450_000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(s);
 
@@ -155,6 +201,9 @@ export const formFromLot = (lot: Lot): LotForm => ({
   quantity: String(lot.quantity),
   unit: lot.unit,
   promised_date: lot.promised_date,
+  challan_no: lot.challan_no,
+  taka: lot.taka ? String(lot.taka) : "",
+  marka: lot.marka,
 });
 
 // An edited lot keeps its link, status and history; only the card's fields change.
@@ -219,9 +268,10 @@ export const FILTERS: { key: Filter; label: string }[] = [
   { key: "archive", label: "Archive" },
 ];
 
-type Viewable = Pick<Lot, "status" | "status_updated_at" | "job_worker" | "facility" | "quality" | "quantity" | "unit"> & { overdue: boolean };
+type Viewable = Pick<Lot, "status" | "status_updated_at" | "job_worker" | "facility" | "quality" | "quantity" | "unit"> &
+  Partial<Pick<Lot, "challan_no" | "marka">> & { overdue: boolean };
 
-// What the board shows for a status filter, the search box (job worker, facility or fabric quality) and an
+// What the board shows for a status filter, the search box (job worker, facility, quality, challan no. or marka) and an
 // optional exact facility. Archive is separate; everything else hides archived lots.
 export function filterLots<T extends Viewable>(lots: T[], filter: Filter, query = "", now = new Date(), facility = ""): T[] {
   const q = query.trim().toLowerCase();
@@ -230,7 +280,7 @@ export function filterLots<T extends Viewable>(lots: T[], filter: Filter, query 
     if (filter === "overdue" && !l.overdue) return false;
     if (filter !== "all" && filter !== "overdue" && filter !== "archive" && l.status !== filter) return false;
     if (facility && l.facility !== facility) return false;
-    return !q || [l.job_worker, l.facility, l.quality].some((s) => s.toLowerCase().includes(q));
+    return !q || [l.job_worker, l.facility, l.quality, l.challan_no ?? "", l.marka ?? ""].some((s) => s.toLowerCase().includes(q));
   });
 }
 
@@ -272,6 +322,9 @@ export function rowsToLots(rows: unknown): Lot[] {
         last_reminded_at: String(l.last_reminded_at ?? ""),
         has_photo: l.has_photo === true,
         notes: Array.isArray(l.notes) ? (l.notes as Note[]) : [],
+        challan_no: String(l.challan_no ?? ""),
+        taka: Number(l.taka) || 0,
+        marka: String(l.marka ?? ""),
       };
     });
 }

@@ -53,6 +53,12 @@ export const FilterIcon = () => (
     <path d="M4 6h16M7 12h10M10 18h4" />
   </Icon>
 );
+export const DocIcon = () => (
+  <Icon>
+    <path d="M14 3H6v18h12V7z" />
+    <path d="M14 3v4h4M9 13h6M9 17h6" />
+  </Icon>
+);
 export const PlusIcon = () => (
   <Icon>
     <path d="M12 5v14M5 12h14" />

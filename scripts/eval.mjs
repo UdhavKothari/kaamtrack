@@ -2,7 +2,7 @@
 // Usage: npm run eval   (needs GEMINI_API_KEY in .env.local; Node strips the TypeScript types in lib/)
 import { readFile, readdir } from "node:fs/promises";
 import { readChallan } from "../lib/ai.ts";
-import { cleanExtraction, todayIST } from "../lib/lots.ts";
+import { cleanExtractions, todayIST } from "../lib/lots.ts";
 
 const dir = new URL("../test-challans/", import.meta.url);
 // Strip the byte-order mark Windows Notepad adds, or JSON.parse fails.
@@ -17,7 +17,7 @@ for (const f of photos) {
   const started = performance.now();
   let result;
   try {
-    result = cleanExtraction(await readChallan((await readFile(new URL(f, dir))).toString("base64"), mime, todayIST()));
+    result = cleanExtractions(await readChallan((await readFile(new URL(f, dir))).toString("base64"), mime, todayIST())).cards[0];
   } catch (e) {
     console.log(`✖ ${f}: ${e.message}`);
     continue;

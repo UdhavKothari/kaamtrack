@@ -5,13 +5,15 @@ import {
   facilitiesOf, FILTERS, filterLots, missingFields, PROCESSES, qtyText, showDate, stageTotals, toMetres, UNITS, whatsappLink,
   type Filter, type LotForm, type PublicLot,
 } from "@/lib/lots";
-import { CameraIcon, FilterIcon, PlusIcon, StatusIcon } from "./StatusIcon";
+import { CameraIcon, DocIcon, FilterIcon, PlusIcon, StatusIcon } from "./StatusIcon";
 import Notes from "./Notes";
 import WhatsAppTimeline from "./WhatsAppTimeline";
 
 type BoardLot = PublicLot & { overdue: boolean; days_out: number; can_auto_remind: boolean; wa_on: boolean };
 
-const EMPTY: LotForm = { job_worker: "", facility: "", phone: "", process: "", quality: "", quantity: "", unit: "metres", promised_date: "" };
+const EMPTY: LotForm = {
+  job_worker: "", facility: "", phone: "", process: "", quality: "", quantity: "", unit: "metres", promised_date: "", challan_no: "", taka: "", marka: "",
+};
 const LABELS: Record<keyof LotForm, string> = {
   job_worker: "Job worker",
   facility: "Company / facility",
@@ -21,29 +23,50 @@ const LABELS: Record<keyof LotForm, string> = {
   quantity: "Quantity",
   unit: "Unit",
   promised_date: "Promised date",
+  challan_no: "Challan no.",
+  taka: "Taka (rolls)",
+  marka: "Marka / party",
 };
-const FIELDS = ["facility", "job_worker", "phone", "process", "quality", "quantity", "promised_date"] as const;
-const OPTIONAL = ["facility", "quality"];
+const FIELDS = ["facility", "job_worker", "phone", "process", "quality", "quantity", "taka", "promised_date", "challan_no", "marka"] as const;
+const OPTIONAL = ["facility", "quality", "taka", "challan_no", "marka"];
 const slug = (s: string) => s.replace(/\s/g, "").toLowerCase();
 
+// A challan waiting to be checked: one per photo, or one per PDF page.
+type Pending = { form: LotForm; unclear: string[]; kept: string | null; label: string };
+
 // Phone photos are 4-8 MB; Vercel rejects uploads over 4.5 MB. Draw a smaller copy on a canvas first.
-async function scaled(file: File, max: number) {
-  const img = await createImageBitmap(file);
-  const scale = Math.min(1, max / Math.max(img.width, img.height));
+function shrink(src: HTMLCanvasElement | ImageBitmap, max: number) {
+  const scale = Math.min(1, max / Math.max(src.width, src.height));
   const canvas = document.createElement("canvas");
-  canvas.width = Math.round(img.width * scale);
-  canvas.height = Math.round(img.height * scale);
-  canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+  canvas.width = Math.round(src.width * scale);
+  canvas.height = Math.round(src.height * scale);
+  canvas.getContext("2d")!.drawImage(src, 0, 0, canvas.width, canvas.height);
   return canvas;
 }
 // ~1600px JPEG for the AI to read.
-async function forReading(file: File): Promise<Blob> {
-  const canvas = await scaled(file, 1600);
-  return new Promise((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error("shrink failed"))), "image/jpeg", 0.85));
-}
+const forReading = (src: HTMLCanvasElement | ImageBitmap): Promise<Blob> =>
+  new Promise((ok, fail) => shrink(src, 1600).toBlob((b) => (b ? ok(b) : fail(new Error("shrink failed"))), "image/jpeg", 0.85));
 // ~1100px JPEG, a few hundred KB at most, kept with the lot so it can be checked against the paper later.
-async function forKeeping(file: File): Promise<string> {
-  return (await scaled(file, 1100)).toDataURL("image/jpeg", 0.7);
+const forKeeping = (src: HTMLCanvasElement | ImageBitmap) => shrink(src, 1100).toDataURL("image/jpeg", 0.7);
+
+// Read one image with the AI. Returns one or more cards; a failure becomes one empty card with the reason.
+async function readImage(src: HTMLCanvasElement | ImageBitmap, label: string): Promise<{ cards: Pending[]; note: string }> {
+  let kept: string | null = null;
+  try {
+    kept = forKeeping(src); // keeping the image is a bonus; never block the lot on it
+  } catch {}
+  try {
+    const body = new FormData();
+    body.append("photo", await forReading(src), "challan.jpg");
+    const res = await fetch("/api/extract", { method: "POST", body });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    const many = data.cards.length > 1;
+    const cards = (data.cards as { form: LotForm; unclear: string[] }[]).map((c, i) => ({ ...c, kept, label: many ? `${label}, challan ${i + 1}` : label }));
+    return { cards, note: data.error ?? (data.isChallan ? "" : `${label} doesn't look like a challan. Check it, or type the details.`) };
+  } catch (e) {
+    return { cards: [{ form: { ...EMPTY }, unclear: [], kept, label }], note: e instanceof Error && e.message ? e.message : `Couldn't read ${label}. Please type the details.` };
+  }
 }
 
 export default function Home() {
@@ -67,6 +90,8 @@ export default function Home() {
   const [reminding, setReminding] = useState("");
   const [openChat, setOpenChat] = useState("");
   const [openPhoto, setOpenPhoto] = useState("");
+  const [queue, setQueue] = useState<Pending[]>([]); // challans from the same file still to check
+  const [place, setPlace] = useState<{ n: number; total: number; label: string } | null>(null);
   const [rowNote, setRowNote] = useState<{ token: string; text: string } | null>(null);
   const sheet = useRef<HTMLDialogElement>(null);
   const capture = useRef<HTMLElement>(null);
@@ -103,7 +128,6 @@ export default function Home() {
   }, [cardOpen]);
 
   function resetCard(next: LotForm | null = null) {
-    if (photo?.startsWith("blob:")) URL.revokeObjectURL(photo);
     setCard(next);
     setEditing(null);
     setUnclear([]);
@@ -111,32 +135,80 @@ export default function Home() {
     setKept(null);
     setSeconds(null);
     setNotice("");
+    setQueue([]);
+    setPlace(null);
   }
 
+  // Put one waiting challan on the card. `carry` is the card just saved from the same file: its promised date and
+  // phone fill in when this challan has none, tagged "unclear" so staff look before saving.
+  function showPending(p: Pending, n: number, total: number, carry?: LotForm) {
+    const form = { ...p.form };
+    const unclear = [...p.unclear];
+    for (const k of ["promised_date", "phone"] as const) {
+      if (carry && !form[k] && carry[k]) {
+        form[k] = carry[k];
+        unclear.push(k);
+      }
+    }
+    setCard(form);
+    setUnclear(unclear);
+    setKept(p.kept);
+    setPhoto(p.kept);
+    setPlace(total > 1 ? { n, total, label: p.label } : null);
+    if (!form.phone) prefillPhone(form.job_worker);
+  }
+
+  // A photo, or a PDF with one challan per page (each page becomes its own lot).
   async function onPhoto(file: File | undefined) {
     if (!file) return;
     resetCard();
-    setPhoto(URL.createObjectURL(file));
     setReading(true);
     const started = performance.now();
-    forKeeping(file).then(setKept).catch(() => {}); // keeping the photo is a bonus; never block the lot on it
     try {
-      const body = new FormData();
-      body.append("photo", await forReading(file), "challan.jpg");
-      const res = await fetch("/api/extract", { method: "POST", body });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setCard(data.form);
-      setUnclear(data.unclear);
-      if (!data.form.phone) prefillPhone(data.form.job_worker);
-      setNotice(data.error ?? (data.isChallan ? "" : "This doesn't look like a challan. Check the photo, or type the details below."));
+      let images: (HTMLCanvasElement | ImageBitmap)[];
+      let skipped = 0;
+      if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
+        const { pdfPages } = await import("./pdf");
+        const { pages, total } = await pdfPages(file);
+        images = pages;
+        skipped = total - pages.length;
+      } else {
+        images = [await createImageBitmap(file)];
+      }
+      // Read up to 6 pages at a time, keeping page order.
+      const results: { cards: Pending[]; note: string }[] = [];
+      for (let i = 0; i < images.length; i += 6) {
+        const batch = images.slice(i, i + 6).map((img, j) => readImage(img, images.length > 1 ? `Page ${i + j + 1}` : "This photo"));
+        results.push(...(await Promise.all(batch)));
+      }
+      const all = results.flatMap((r) => r.cards);
+      const notes = results.map((r) => r.note).filter(Boolean);
+      if (skipped) notes.push(`Only the first ${images.length} pages were read; ${skipped} more were skipped.`);
+      showPending(all[0], 1, all.length);
+      setQueue(all.slice(1));
+      setNotice(notes.join(" "));
     } catch (e) {
+      console.error(e);
       setCard({ ...EMPTY });
-      setNotice(e instanceof Error && e.message ? e.message : "Couldn't read this file. Please type the details below.");
+      setNotice("Couldn't open this file. Please type the details below.");
     } finally {
       setSeconds((performance.now() - started) / 1000);
       setReading(false);
     }
+  }
+
+  // Move on to the next challan from the same file (after saving, or when skipping one).
+  function nextPending(carry?: LotForm, saved = false) {
+    const [next, ...rest] = queue;
+    if (!next || !place) {
+      resetCard();
+      return false;
+    }
+    const n = place.n + 1;
+    showPending(next, n, place.total, carry);
+    setQueue(rest);
+    setNotice(saved ? `Saved challan ${place.n} of ${place.total}. Check challan ${n} below.` : `Skipped challan ${place.n}.`);
+    return true;
   }
 
   function edit(k: keyof LotForm, v: string) {
@@ -167,9 +239,11 @@ export default function Home() {
       const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      resetCard();
-      setNotice(editing ? "Changes saved." : "Lot saved. Open it below to send the status link to the job worker.");
       loadLots();
+      if (!editing && nextPending(card, true)) return;
+      const many = place ? `Last challan from this file saved.` : "Lot saved.";
+      resetCard();
+      setNotice(editing ? "Changes saved." : `${many} Open each lot below to send the status link to the job worker.`);
     } catch (e) {
       setNotice(e instanceof Error && e.message ? e.message : "Couldn't save. Try again.");
     } finally {
@@ -277,7 +351,7 @@ export default function Home() {
 
       {showCapture && (
         <section className="panel" ref={capture}>
-          {reading && <p className="reading" role="status">Reading challan…</p>}
+          {reading && <p className="reading" role="status">Reading the challan… (a PDF takes a little longer, every page is read)</p>}
           {notice && <p className="notice" role="status">{notice}</p>}
 
           {card && (
@@ -285,6 +359,11 @@ export default function Home() {
               {photo && <img src={photo} alt="Challan photo" className="photo" />}
               <form className="card" onSubmit={(e) => { e.preventDefault(); save(); }}>
                 {editing && <p className="notice">Editing a saved lot. Its link, status and history stay the same.</p>}
+                {place && (
+                  <p className="place">
+                    <strong>Challan {place.n} of {place.total}</strong> <span className="muted">· {place.label}</span>
+                  </p>
+                )}
                 {seconds !== null && <p className="muted small">Read in {seconds.toFixed(1)} s. Check every field before saving.</p>}
                 {FIELDS.map((k) => (
                   <label key={k} className={`field ${missing.includes(k) ? "missing" : ""}`}>
@@ -308,6 +387,8 @@ export default function Home() {
                         </div>
                         {card.unit === "lots" && Number(card.quantity) > 0 && <span className="muted small">1 lot = 1200 m, so this is {toMetres(Number(card.quantity), "lots")} metres</span>}
                       </>
+                    ) : k === "taka" ? (
+                      <input type="number" inputMode="numeric" min="0" step="1" value={card.taka} onChange={(e) => edit("taka", e.target.value)} />
                     ) : k === "phone" ? (
                       <div className="row">
                         <span className="prefix">+91</span>
@@ -330,7 +411,8 @@ export default function Home() {
                   <button className="button primary" disabled={saving || missing.length > 0}>
                     {saving ? "Saving…" : missing.length ? `Fill ${missing.length} red field${missing.length > 1 ? "s" : ""} to save` : editing ? "Save changes" : "Save lot"}
                   </button>
-                  <button type="button" className="button" onClick={() => resetCard()}>Cancel</button>
+                  {place && place.n < place.total && <button type="button" className="button" onClick={() => nextPending()}>Skip this one</button>}
+                  <button type="button" className="button" onClick={() => resetCard()}>{place ? "Stop" : "Cancel"}</button>
                 </div>
               </form>
             </div>
@@ -364,7 +446,7 @@ export default function Home() {
       <section>
         {lots.length > 0 && (
           <div className="toolbar">
-            <input className="search" type="search" placeholder="Search facility or worker" aria-label="Search lots" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <input className="search" type="search" placeholder="Search lots, challan no." aria-label="Search lots" value={query} onChange={(e) => setQuery(e.target.value)} />
             <button className="button filter-btn" onClick={() => sheet.current?.showModal()}>
               <FilterIcon /> Filter{activeFilters > 0 && <span className="badge">{activeFilters}</span>}
             </button>
@@ -377,7 +459,7 @@ export default function Home() {
           </div>
         )}
 
-        {!lots.length && !boardError && <p className="muted empty">No lots yet. Tap “Snap challan” below to start.</p>}
+        {!lots.length && !boardError && <p className="muted empty">No lots yet. Tap “Snap” to photograph a challan, or “PDF” for a challan file.</p>}
         {lots.length > 0 && !shown.length && (
           <p className="muted">
             No lots match. <button className="link" onClick={clearAll}>Show all lots</button>
@@ -395,7 +477,7 @@ export default function Home() {
                   </span>
                   <span className="lot-line">
                     <span className={`status s-${slug(l.status)}`}><StatusIcon status={l.status} size={16} /> {l.status}</span>
-                    <span>{qtyText(l)}</span>
+                    <span>{qtyText(l)}{l.taka > 0 && ` · ${l.taka} taka`}</span>
                     <span className="muted">{l.overdue ? <strong className="late">OVERDUE · {showDate(l.promised_date)}</strong> : `due ${showDate(l.promised_date)}`}</span>
                     {l.notes.length > 0 && <span className={`pill ${l.notes[l.notes.length - 1].problem ? "problem" : ""}`}>{l.notes[l.notes.length - 1].problem ? "Problem noted" : `${l.notes.length} note${l.notes.length > 1 ? "s" : ""}`}</span>}
                   </span>
@@ -406,6 +488,8 @@ export default function Home() {
                     {l.facility && <><dt>Job worker</dt><dd>{l.job_worker}</dd></>}
                     <dt>Process</dt><dd>{l.process}</dd>
                     {l.quality && <><dt>Fabric</dt><dd>{l.quality}</dd></>}
+                    {l.challan_no && <><dt>Challan</dt><dd>{l.challan_no}</dd></>}
+                    {l.marka && <><dt>Marka</dt><dd>{l.marka}</dd></>}
                     <dt>Out for</dt><dd>{l.days_out} day{l.days_out === 1 ? "" : "s"}</dd>
                   </dl>
                   <Notes notes={l.notes} />
@@ -446,10 +530,14 @@ export default function Home() {
 
       <nav className="dock" aria-label="Add a lot">
         <label className="button primary">
-          <CameraIcon /> Snap challan
+          <CameraIcon /> Snap
           <input type="file" accept="image/*" className="sr-only" onChange={(e) => { onPhoto(e.target.files?.[0]); e.target.value = ""; }} disabled={reading} />
         </label>
-        <button className="button" onClick={() => resetCard({ ...EMPTY })}><PlusIcon /> Type lot</button>
+        <label className="button">
+          <DocIcon /> PDF
+          <input type="file" accept="application/pdf,.pdf" className="sr-only" onChange={(e) => { onPhoto(e.target.files?.[0]); e.target.value = ""; }} disabled={reading} />
+        </label>
+        <button className="button" onClick={() => resetCard({ ...EMPTY })} aria-label="Type a lot"><PlusIcon /> Type</button>
       </nav>
 
       <dialog className="sheet" ref={sheet} onClick={(e) => e.target === sheet.current && sheet.current.close()} aria-labelledby="filter-title">
