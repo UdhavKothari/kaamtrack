@@ -1,5 +1,5 @@
 // The AI calls in KaamTrack: read a challan photo (or a PDF page as an image), and read a job worker's voice note. Both return raw fields
-// that plain code in lots.ts then cleans. Goes through OpenRouter, pinned to Google's own infrastructure.
+// that plain code in lots.ts then cleans. Gemini directly (GEMINI_API_KEY), or through OpenRouter pinned to Google.
 // To switch models, change MODEL.
 
 const MODEL = "google/gemini-3.7-flash";
@@ -35,7 +35,7 @@ For each challan:
 }
 
 // True when OpenRouter refused for lack of credit (402), so screens can say so instead of "try again".
-export const outOfCredit = (e: unknown) => e instanceof Error && e.message.startsWith("OpenRouter 402");
+export const outOfCredit = (e: unknown) => e instanceof Error && /^(OpenRouter 402|Gemini 429)/.test(e.message);
 
 export const voicePrompt = (today: string, lot: string) => `A textile job worker in Surat, India recorded a short voice note about a lot of fabric they are processing (${lot}).
 They may speak Gujarati, Hindi, English or a mix. Today is ${today}.
@@ -92,46 +92,74 @@ const voiceSchema = {
   additionalProperties: false,
 };
 
-async function ask(media: Record<string, unknown>, text: string, name: string, schema: object): Promise<unknown> {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) throw new Error("OPENROUTER_API_KEY is not set");
+type Media = { mime: string; base64: string };
 
-  const body = JSON.stringify({
-    model: MODEL,
-    messages: [{ role: "user", content: [{ type: "text", text }, media] }],
-    response_format: { type: "json_schema", json_schema: { name, strict: true, schema } },
-    reasoning: { effort: "minimal" }, // speed: the 10-second test matters more than deep reasoning
-    temperature: 0,
-    // Without a cap OpenRouter reserves the model's maximum (65k tokens) against the balance and refuses the call when
-    // credit is low. A challan or voice note answer is a few hundred tokens.
-    max_tokens: 4000,
-    provider: { only: ["google-vertex", "google-ai-studio"], allow_fallbacks: false },
-  });
+// One AI call: an image or audio file plus instructions, answered as JSON matching `schema`.
+// With GEMINI_API_KEY set it goes straight to Google's Gemini API; otherwise through OpenRouter (pinned to Google).
+async function ask(media: Media, text: string, name: string, schema: object): Promise<unknown> {
+  const gemini = process.env.GEMINI_API_KEY;
+  const openrouter = process.env.OPENROUTER_API_KEY;
+  if (!gemini && !openrouter) throw new Error("Set GEMINI_API_KEY or OPENROUTER_API_KEY");
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const call: { url: string; headers: Record<string, string>; body: object; answer: (d: any) => string | undefined; label: string } = gemini
+    ? {
+        url: `https://generativelanguage.googleapis.com/v1beta/models/${MODEL.replace("google/", "")}:generateContent`,
+        headers: { "x-goog-api-key": gemini, "Content-Type": "application/json" },
+        body: {
+          contents: [{ role: "user", parts: [{ text }, { inline_data: { mime_type: media.mime, data: media.base64 } }] }],
+          generationConfig: {
+            responseMimeType: "application/json", responseJsonSchema: schema, temperature: 0, maxOutputTokens: 4000,
+            thinkingConfig: { thinkingLevel: "low" }, // speed: the 10-second test matters more than deep reasoning
+          },
+        },
+        answer: (d: any) => d?.candidates?.[0]?.content?.parts?.find((p: any) => typeof p.text === "string")?.text, // eslint-disable-line @typescript-eslint/no-explicit-any
+        label: "Gemini",
+      }
+    : {
+        url: "https://openrouter.ai/api/v1/chat/completions",
+        headers: { Authorization: `Bearer ${openrouter}`, "Content-Type": "application/json" },
+        body: {
+          model: MODEL,
+          messages: [{
+            role: "user",
+            content: [
+              { type: "text", text },
+              media.mime.startsWith("audio/")
+                ? { type: "input_audio", input_audio: { data: media.base64, format: "wav" } }
+                : { type: "image_url", image_url: { url: `data:${media.mime};base64,${media.base64}` } },
+            ],
+          }],
+          response_format: { type: "json_schema", json_schema: { name, strict: true, schema } },
+          reasoning: { effort: "minimal" }, // speed: the 10-second test matters more than deep reasoning
+          temperature: 0,
+          // Without a cap OpenRouter reserves the model's maximum (65k tokens) against the balance and refuses the call
+          // when credit is low. A challan or voice note answer is a few hundred tokens.
+          max_tokens: 4000,
+          provider: { only: ["google-vertex", "google-ai-studio"], allow_fallbacks: false },
+        },
+        answer: (d: any) => d?.choices?.[0]?.message?.content, // eslint-disable-line @typescript-eslint/no-explicit-any
+        label: "OpenRouter",
+      };
+  const body = JSON.stringify(call.body);
 
   // Retry rate limits and server errors with backoff (1s, 2s, 4s); stop at once on anything else.
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body,
-      signal: AbortSignal.timeout(20_000),
-    });
+    const res = await fetch(call.url, { method: "POST", headers: call.headers, body, signal: AbortSignal.timeout(20_000) });
     if ((res.status === 429 || res.status >= 500) && attempt < 3) {
       await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
       continue;
     }
-    if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${(await res.text()).slice(0, 300)}`);
-
-    const data = await res.json();
-    const content = data?.choices?.[0]?.message?.content;
+    if (!res.ok) throw new Error(`${call.label} ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    const content = call.answer(await res.json());
     return content ? JSON.parse(content) : {};
   }
 }
 
 // A challan photo, or one page of a PDF challan (the phone turns each page into an image first; see app/pdf.ts).
 export const readChallan = (base64: string, mimeType: string, today: string) =>
-  ask({ type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } }, challanPrompt(today), "challan", challanSchema);
+  ask({ mime: mimeType, base64 }, challanPrompt(today), "challan", challanSchema);
 
-// `wavBase64` is a 16 kHz mono WAV made in the browser (the one audio format every phone can produce and OpenRouter accepts).
+// `wavBase64` is a 16 kHz mono WAV made in the browser (the one audio format every phone can produce and both APIs accept).
 export const readVoiceNote = (wavBase64: string, today: string, lot: string) =>
-  ask({ type: "input_audio", input_audio: { data: wavBase64, format: "wav" } }, voicePrompt(today, lot), "voice_note", voiceSchema);
+  ask({ mime: "audio/wav", base64: wavBase64 }, voicePrompt(today, lot), "voice_note", voiceSchema);

@@ -45,7 +45,8 @@ GitHub Actions (`.github/workflows/ci.yml`) runs types, tests and a production b
 ## Settings (environment variables)
 | Name | Needed? | What it is |
 |---|---|---|
-| `OPENROUTER_API_KEY` | yes | Reads challans. |
+| `GEMINI_API_KEY` | one of these two | Reads challans and voice notes straight from Google's Gemini API (preferred: faster, no OpenRouter minimum balance). |
+| `OPENROUTER_API_KEY` | one of these two | Used only when `GEMINI_API_KEY` is not set. OpenRouter refuses audio and files below a $0.50 balance. |
 | `KV_REST_API_URL`, `KV_REST_API_TOKEN` | yes | Redis (added by Vercel's Upstash integration; `UPSTASH_REDIS_REST_*` also works). |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | yes on the live site | Google sign-in (a Web OAuth client in Google Cloud). Redirect URI: `https://<site>/api/auth/google/callback`. The secret also signs session cookies. |
 | `OWNER_EMAILS` | yes on the live site | Comma-separated admin Google accounts. Admins always get in and manage the Settings list. Without all three, the live site refuses the owner side; local runs stay open. |
