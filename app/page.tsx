@@ -250,6 +250,40 @@ export default function Home() {
     }
   }
 
+  // Save this challan and every one still waiting from the same file in one go. Challans with no promised date or
+  // phone take this card's; any that still miss a required field (or fail to save) stay on the card to check.
+  async function saveAll() {
+    if (!card || missingFields(card).length || !place) return;
+    setSaving(true);
+    const items: Pending[] = [{ form: card, unclear: [], kept, label: place.label }, ...queue].map((p) => ({
+      ...p,
+      form: { ...p.form, promised_date: p.form.promised_date || card.promised_date, phone: p.form.phone || card.phone },
+    }));
+    const ok = await Promise.all(
+      items.map(async (p) => {
+        if (missingFields(p.form).length) return false;
+        try {
+          const res = await fetch("/api/lots", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...p.form, photo: p.kept ?? undefined }) });
+          return res.ok;
+        } catch {
+          return false;
+        }
+      }),
+    );
+    setSaving(false);
+    loadLots();
+    const left = items.filter((_, i) => !ok[i]);
+    const saved = items.length - left.length;
+    if (!left.length) {
+      resetCard();
+      setNotice(`All ${saved} lots saved. Open each lot below to send the status link to the job worker.`);
+      return;
+    }
+    showPending(left[0], 1, left.length);
+    setQueue(left.slice(1));
+    setNotice(`Saved ${saved} of ${items.length}. ${left.length} need${left.length === 1 ? "s" : ""} checking: fill the red fields below.`);
+  }
+
   // Open a saved lot on the card to fix it. The link, status and history stay the same.
   async function startEdit(l: BoardLot) {
     try {
@@ -410,9 +444,17 @@ export default function Home() {
                   <button className="button primary" disabled={saving || missing.length > 0}>
                     {saving ? "Saving…" : missing.length ? `Fill ${missing.length} red field${missing.length > 1 ? "s" : ""} to save` : editing ? "Save changes" : "Save lot"}
                   </button>
+                  {place && queue.length > 0 && (
+                    <button type="button" className="button" onClick={saveAll} disabled={saving || missing.length > 0}>
+                      Save all {queue.length + 1} lots
+                    </button>
+                  )}
                   {place && place.n < place.total && <button type="button" className="button" onClick={() => nextPending()}>Skip this one</button>}
                   <button type="button" className="button" onClick={() => resetCard()}>{place ? "Stop" : "Cancel"}</button>
                 </div>
+                {place && queue.length > 0 && (
+                  <p className="muted small">Save all uses this card&apos;s promised date and phone for any challan that has none. Challans with other gaps stay here to check.</p>
+                )}
               </form>
             </div>
           )}
