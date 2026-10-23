@@ -281,3 +281,9 @@ test("saved lots keep challan no., taka and marka, and search finds them", () =>
   assert.equal(filterLots([row], "all", "jai maa", new Date(lot.created_at)).length, 1);
   assert.equal(newLot(formFromBody({ ...good, taka: "-3" })).taka, 0);
 });
+
+test("only a company on the challan: it fills the job worker too, flagged for checking", () => {
+  const r = cleanExtractions({ is_challan: true, challans: [{ facility: "Shree Ganesh Dyeing House", job_worker: null, unclear_fields: [] }] });
+  assert.equal(r.cards[0].form.job_worker, "Shree Ganesh Dyeing House");
+  assert.ok(r.cards[0].unclear.includes("job_worker"));
+});

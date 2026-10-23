@@ -101,6 +101,12 @@ export function cleanExtraction(raw: unknown) {
     unit: UNITS.includes(unit) ? unit : "metres",
     promised_date: isValidDate(date) ? date : "",
   };
+  // Only a company name on the challan: it is also who the goods go to, so it fills the required job worker too,
+  // tagged unclear so staff check it (the AI is told to split "COMPANY (PERSON)" itself).
+  if (!form.job_worker && form.facility) {
+    form.job_worker = form.facility;
+    unclear.add("job_worker");
+  }
   for (const k of REQUIRED) if (!form[k]) unclear.add(k);
 
   return { isChallan: r.is_challan === true, form, unclear: [...unclear] as string[] };
