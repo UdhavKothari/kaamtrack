@@ -1,4 +1,4 @@
-import { readChallan } from "@/lib/ai";
+import { outOfCredit, readChallan } from "@/lib/ai";
 import { overLimit } from "@/lib/store";
 import { cleanExtractions, todayIST } from "@/lib/lots";
 
@@ -27,6 +27,9 @@ export async function POST(req: Request) {
   } catch (e) {
     console.error("extract failed", e);
     // Bad or unreadable file: hand back an empty card so staff can type the lot in.
-    return Response.json({ ...cleanExtractions({}), error: "Couldn't read this photo. Please type the details." });
+    const why = outOfCredit(e)
+      ? "Challan reading is paused: the AI account (OpenRouter) needs more credit. Please type the details, and ask the owner to top it up."
+      : "Couldn't read this photo. Please type the details.";
+    return Response.json({ ...cleanExtractions({}), error: why });
   }
 }

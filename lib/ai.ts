@@ -34,6 +34,9 @@ For each challan:
 - unclear_fields: names of any fields above you were not confident about.`;
 }
 
+// True when OpenRouter refused for lack of credit (402), so screens can say so instead of "try again".
+export const outOfCredit = (e: unknown) => e instanceof Error && e.message.startsWith("OpenRouter 402");
+
 export const voicePrompt = (today: string, lot: string) => `A textile job worker in Surat, India recorded a short voice note about a lot of fabric they are processing (${lot}).
 They may speak Gujarati, Hindi, English or a mix. Today is ${today}.
 

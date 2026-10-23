@@ -1,4 +1,4 @@
-import { readVoiceNote } from "@/lib/ai";
+import { outOfCredit, readVoiceNote } from "@/lib/ai";
 import { addNote, getLot, overLimit } from "@/lib/store";
 import { cleanNote, qtyText, todayIST } from "@/lib/lots";
 
@@ -34,6 +34,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/lots/[token]/no
     return saved ? Response.json({ notes: saved.notes }) : Response.json({ error: "Lot not found" }, { status: 404 });
   } catch (e) {
     console.error("note failed", e);
+    if (outOfCredit(e)) return Response.json({ error: "Voice notes aren't available right now. Please type your note instead." }, { status: 503 });
     return Response.json({ error: "Couldn't save the note. Try again, or type it." }, { status: 502 });
   }
 }
