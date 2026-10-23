@@ -29,7 +29,6 @@ For each challan:
 - quantity: the TOTAL quantity as a number. Use the printed total (e.g. "Total Meter") if there is one; never a single roll.
 - unit: metres or thaan (mtr, m, meter = metres; than, thaan, તાકા, थान = thaan). If a total in metres is printed, use metres.
 - taka: the number of rolls / pieces (written as Total Taka, taka, thaan or pieces), else null.
-- marka: the party / buyer / PO reference written as MARKA, PARTY NAME or REMARK, else null.
 - promised_date: only a promised / due / return date, as YYYY-MM-DD. The challan's own date is NOT a promised date.
   Today is ${today}; dates are written day first (dd/mm). If no year is written, use the next such date on or after today.
 - unclear_fields: names of any fields above you were not confident about.`;
@@ -66,11 +65,10 @@ const challanSchema = {
           quantity: nullable("number"),
           unit: nullable("string", { enum: ["metres", "thaan", null] }),
           taka: nullable("number"),
-          marka: nullable("string"),
           promised_date: nullable("string"),
           unclear_fields: { type: "array", items: { type: "string" } },
         },
-        required: ["challan_no", "job_worker", "facility", "job_worker_phone", "process", "quality", "quantity", "unit", "taka", "marka", "promised_date", "unclear_fields"],
+        required: ["challan_no", "job_worker", "facility", "job_worker_phone", "process", "quality", "quantity", "unit", "taka", "promised_date", "unclear_fields"],
         additionalProperties: false,
       },
     },

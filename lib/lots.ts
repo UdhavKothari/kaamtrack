@@ -25,7 +25,6 @@ export type LotForm = {
   promised_date: string;
   challan_no: string; // the challan's own number, e.g. ML09702/26 (optional)
   taka: string; // number of rolls (taka / thaan) on the challan (optional)
-  marka: string; // the party / PO reference written as MARKA or REMARK (optional)
 };
 
 // A remark from the job worker: typed, or a voice note that Gemini turned into text and a short summary.
@@ -50,7 +49,6 @@ export type Lot = {
   notes: Note[]; // newest last, at most NOTES_KEPT
   challan_no: string;
   taka: number; // 0 = not written
-  marka: string;
 };
 
 // A lot as the browser sees it: the phone number never leaves the server.
@@ -96,7 +94,6 @@ export function cleanExtraction(raw: unknown) {
     quality: str(r.quality),
     challan_no: str(r.challan_no),
     taka: wholeNumber(r.taka) ? String(wholeNumber(r.taka)) : "",
-    marka: str(r.marka),
     quantity: Number.isFinite(qty) && qty > 0 ? String(qty) : "",
     unit: UNITS.includes(unit) ? unit : "metres",
     promised_date: isValidDate(date) ? date : "",
@@ -143,7 +140,6 @@ export const formFromBody = (b: Record<string, unknown>): LotForm => ({
   promised_date: String(b.promised_date ?? ""),
   challan_no: String(b.challan_no ?? ""),
   taka: String(b.taka ?? ""),
-  marka: String(b.marka ?? ""),
 });
 
 // Required fields that are blank or invalid. Save is allowed only when this is empty.
@@ -190,7 +186,6 @@ const cardFields = (f: LotForm) => ({
   promised_date: f.promised_date,
   challan_no: f.challan_no.trim().slice(0, 40),
   taka: wholeNumber(f.taka),
-  marka: f.marka.trim().slice(0, 120),
 });
 
 // The kept challan photo must be a small JPEG data URL (the browser shrinks it to about 1100px; a PDF page is drawn as one).
@@ -209,7 +204,6 @@ export const formFromLot = (lot: Lot): LotForm => ({
   promised_date: lot.promised_date,
   challan_no: lot.challan_no,
   taka: lot.taka ? String(lot.taka) : "",
-  marka: lot.marka,
 });
 
 // An edited lot keeps its link, status and history; only the card's fields change.
@@ -275,9 +269,9 @@ export const FILTERS: { key: Filter; label: string }[] = [
 ];
 
 type Viewable = Pick<Lot, "status" | "status_updated_at" | "job_worker" | "facility" | "quality" | "quantity" | "unit"> &
-  Partial<Pick<Lot, "challan_no" | "marka">> & { overdue: boolean };
+  Partial<Pick<Lot, "challan_no">> & { overdue: boolean };
 
-// What the board shows for a status filter, the search box (job worker, facility, quality, challan no. or marka) and an
+// What the board shows for a status filter, the search box (job worker, facility, quality or challan no.) and an
 // optional exact facility. Archive is separate; everything else hides archived lots.
 export function filterLots<T extends Viewable>(lots: T[], filter: Filter, query = "", now = new Date(), facility = ""): T[] {
   const q = query.trim().toLowerCase();
@@ -286,7 +280,7 @@ export function filterLots<T extends Viewable>(lots: T[], filter: Filter, query 
     if (filter === "overdue" && !l.overdue) return false;
     if (filter !== "all" && filter !== "overdue" && filter !== "archive" && l.status !== filter) return false;
     if (facility && l.facility !== facility) return false;
-    return !q || [l.job_worker, l.facility, l.quality, l.challan_no ?? "", l.marka ?? ""].some((s) => s.toLowerCase().includes(q));
+    return !q || [l.job_worker, l.facility, l.quality, l.challan_no ?? ""].some((s) => s.toLowerCase().includes(q));
   });
 }
 
@@ -330,7 +324,6 @@ export function rowsToLots(rows: unknown): Lot[] {
         notes: Array.isArray(l.notes) ? (l.notes as Note[]) : [],
         challan_no: String(l.challan_no ?? ""),
         taka: Number(l.taka) || 0,
-        marka: String(l.marka ?? ""),
       };
     });
 }

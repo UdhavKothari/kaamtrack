@@ -12,7 +12,7 @@ import WhatsAppTimeline from "./WhatsAppTimeline";
 type BoardLot = PublicLot & { overdue: boolean; days_out: number; can_auto_remind: boolean; wa_on: boolean };
 
 const EMPTY: LotForm = {
-  job_worker: "", facility: "", phone: "", process: "", quality: "", quantity: "", unit: "metres", promised_date: "", challan_no: "", taka: "", marka: "",
+  job_worker: "", facility: "", phone: "", process: "", quality: "", quantity: "", unit: "metres", promised_date: "", challan_no: "", taka: "",
 };
 const LABELS: Record<keyof LotForm, string> = {
   job_worker: "Job worker",
@@ -25,10 +25,9 @@ const LABELS: Record<keyof LotForm, string> = {
   promised_date: "Promised date",
   challan_no: "Challan no.",
   taka: "Taka (rolls)",
-  marka: "Marka / party",
 };
-const FIELDS = ["facility", "job_worker", "phone", "process", "quality", "quantity", "taka", "promised_date", "challan_no", "marka"] as const;
-const OPTIONAL = ["facility", "quality", "taka", "challan_no", "marka"];
+const FIELDS = ["facility", "job_worker", "phone", "process", "quality", "quantity", "taka", "promised_date", "challan_no"] as const;
+const OPTIONAL = ["facility", "quality", "taka", "challan_no"];
 const slug = (s: string) => s.replace(/\s/g, "").toLowerCase();
 
 // A challan waiting to be checked: one per photo, or one per PDF page.
@@ -489,7 +488,6 @@ export default function Home() {
                     <dt>Process</dt><dd>{l.process}</dd>
                     {l.quality && <><dt>Fabric</dt><dd>{l.quality}</dd></>}
                     {l.challan_no && <><dt>Challan</dt><dd>{l.challan_no}</dd></>}
-                    {l.marka && <><dt>Marka</dt><dd>{l.marka}</dd></>}
                     <dt>Out for</dt><dd>{l.days_out} day{l.days_out === 1 ? "" : "s"}</dd>
                   </dl>
                   <Notes notes={l.notes} />

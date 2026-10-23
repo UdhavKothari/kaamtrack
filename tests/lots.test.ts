@@ -6,7 +6,7 @@ import {
 } from "../lib/lots.ts";
 import { sendReminder } from "../lib/whatsapp.ts";
 
-const good = { job_worker: "A", facility: "Shree Dyeing House", quality: "60 gram georgette", phone: "98765 43210", process: "printing", quantity: "40", unit: "thaan", promised_date: "2026-11-01", challan_no: "ML1/26", taka: "12", marka: "PO-9" };
+const good = { job_worker: "A", facility: "Shree Dyeing House", quality: "60 gram georgette", phone: "98765 43210", process: "printing", quantity: "40", unit: "thaan", promised_date: "2026-11-01", challan_no: "ML1/26", taka: "12" };
 
 test("good AI output becomes a full card", () => {
   const r = cleanExtraction({
@@ -14,7 +14,7 @@ test("good AI output becomes a full card", () => {
     unit: "metres", promised_date: "2026-10-28", unclear_fields: [],
   });
   assert.equal(r.isChallan, true);
-  assert.deepEqual(r.form, { job_worker: "Shree Dyeing", facility: "Shree Mills", phone: "9876543210", process: "dyeing", quality: "dull satin", quantity: "1200", unit: "metres", promised_date: "2026-10-28", challan_no: "", taka: "", marka: "" });
+  assert.deepEqual(r.form, { job_worker: "Shree Dyeing", facility: "Shree Mills", phone: "9876543210", process: "dyeing", quality: "dull satin", quantity: "1200", unit: "metres", promised_date: "2026-10-28", challan_no: "", taka: "" });
   assert.deepEqual(r.unclear, []);
   assert.deepEqual(missingFields(r.form), []);
 });
@@ -22,7 +22,7 @@ test("good AI output becomes a full card", () => {
 test("bad or missing AI output becomes blank, unclear and required", () => {
   const r = cleanExtraction({ is_challan: "yes", job_worker: null, job_worker_phone: "GJ05 AB 1234", process: "washing", quantity: -5, unit: "kg", promised_date: "31/02/2026" });
   assert.equal(r.isChallan, false);
-  assert.deepEqual(r.form, { job_worker: "", facility: "", phone: "", process: "", quality: "", quantity: "", unit: "metres", promised_date: "", challan_no: "", taka: "", marka: "" });
+  assert.deepEqual(r.form, { job_worker: "", facility: "", phone: "", process: "", quality: "", quantity: "", unit: "metres", promised_date: "", challan_no: "", taka: "" });
   assert.deepEqual(r.unclear.sort(), ["job_worker", "phone", "process", "promised_date", "quantity"]);
   assert.deepEqual(missingFields(r.form), ["job_worker", "phone", "process", "quantity", "promised_date"]);
   assert.deepEqual(cleanExtraction(null).form.job_worker, "");
@@ -31,7 +31,7 @@ test("bad or missing AI output becomes blank, unclear and required", () => {
 
 test("missingFields rejects whitespace, zero, impossible dates and bad phones", () => {
   assert.deepEqual(
-    missingFields({ job_worker: "  ", facility: "", quality: "", phone: "12345", process: "dyeing", quantity: "0", unit: "thaan", promised_date: "2026-02-30", challan_no: "", taka: "", marka: "" }),
+    missingFields({ job_worker: "  ", facility: "", quality: "", phone: "12345", process: "dyeing", quantity: "0", unit: "thaan", promised_date: "2026-02-30", challan_no: "", taka: "" }),
     ["job_worker", "phone", "quantity", "promised_date"],
   );
 });
@@ -48,7 +48,7 @@ test("phones: Indian mobiles in any common format, nothing else", () => {
 test("editing keeps the link, status and history; only the card's fields change; the phone round-trips", () => {
   const lot = { ...newLot(good), token: "0123456789abcdef", status: "Ready", last_reminded_at: "2026-11-01T04:00:00.000Z" };
   const f = formFromLot(lot);
-  assert.deepEqual(f, { job_worker: "A", facility: "Shree Dyeing House", phone: "9876543210", process: "printing", quality: "60 gram georgette", quantity: "40", unit: "thaan", promised_date: "2026-11-01", challan_no: "ML1/26", taka: "12", marka: "PO-9" });
+  assert.deepEqual(f, { job_worker: "A", facility: "Shree Dyeing House", phone: "9876543210", process: "printing", quality: "60 gram georgette", quantity: "40", unit: "thaan", promised_date: "2026-11-01", challan_no: "ML1/26", taka: "12" });
   const edited = applyEdit(lot, { ...f, job_worker: "  B Dyers ", phone: "+91 90000 00033", quantity: "55" });
   assert.equal(edited.token, lot.token);
   assert.equal(edited.status, "Ready");
@@ -243,21 +243,21 @@ test("voice notes: Gemini's reading is cleaned, a typed note wins, only the last
   assert.equal(lot.notes[9].text, "n11");
 });
 
-test("a printed mill challan page: To-party company, person in brackets, totals, taka and marka come through", () => {
+test("a printed mill challan page: To-party company, person in brackets, totals, and taka come through", () => {
   const raw = {
     is_challan: true,
     challans: [
       { challan_no: " ML09702/26 ", facility: "RAVI EXPORTS DYEING & PRINTING", job_worker: "Manish", job_worker_phone: "02616623489",
-        process: "dyeing", quality: "PENCIL", quantity: 1034, unit: "metres", taka: 12, marka: "4773*12/INDIGO/PO-1054", promised_date: null, unclear_fields: [] },
+        process: "dyeing", quality: "PENCIL", quantity: 1034, unit: "metres", taka: 12, promised_date: null, unclear_fields: [] },
       { challan_no: "ML09707/26", facility: "RAVI EXPORTS DYEING & PRINTING", job_worker: "Manish", job_worker_phone: null,
-        process: "finishing", quality: "VOLTA", quantity: 282, unit: "metres", taka: "4", marka: null, promised_date: null, unclear_fields: [] },
+        process: "finishing", quality: "VOLTA", quantity: 282, unit: "metres", taka: "4", promised_date: null, unclear_fields: [] },
     ],
   };
   const r = cleanExtractions(raw);
   assert.equal(r.isChallan, true);
   assert.equal(r.cards.length, 2);
   const [a, b] = r.cards.map((c) => c.form);
-  assert.deepEqual([a.challan_no, a.facility, a.job_worker, a.quality, a.quantity, a.unit, a.taka, a.marka], ["ML09702/26", "RAVI EXPORTS DYEING & PRINTING", "Manish", "PENCIL", "1034", "metres", "12", "4773*12/INDIGO/PO-1054"]);
+  assert.deepEqual([a.challan_no, a.facility, a.job_worker, a.quality, a.quantity, a.unit, a.taka], ["ML09702/26", "RAVI EXPORTS DYEING & PRINTING", "Manish", "PENCIL", "1034", "metres", "12"]);
   assert.equal(a.phone, ""); // the sender's landline is never taken as the job worker's mobile
   assert.equal(b.process, "finishing");
   assert.equal(b.taka, "4");
@@ -272,13 +272,12 @@ test("no challans read still gives one empty card; a non-number taka is dropped;
   assert.equal(cleanExtractions({ is_challan: true, challans: Array(25).fill({}) }).cards.length, 20);
 });
 
-test("saved lots keep challan no., taka and marka, and search finds them", () => {
-  const lot = newLot(formFromBody({ ...good, challan_no: " ML09703/26 ", taka: "8", marka: " JAI MAA TXT " }));
-  assert.deepEqual([lot.challan_no, lot.taka, lot.marka], ["ML09703/26", 8, "JAI MAA TXT"]);
+test("saved lots keep challan no. and taka, and search finds them", () => {
+  const lot = newLot(formFromBody({ ...good, challan_no: " ML09703/26 ", taka: "8" }));
+  assert.deepEqual([lot.challan_no, lot.taka], ["ML09703/26", 8]);
   assert.equal(formFromLot(lot).taka, "8");
   const row = { ...lot, overdue: false };
   assert.equal(filterLots([row], "all", "ml09703", new Date(lot.created_at)).length, 1);
-  assert.equal(filterLots([row], "all", "jai maa", new Date(lot.created_at)).length, 1);
   assert.equal(newLot(formFromBody({ ...good, taka: "-3" })).taka, 0);
 });
 
