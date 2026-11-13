@@ -7,10 +7,10 @@ export const SESSION_DAYS = 30;
 // Pages and APIs that stay open with no sign-in:
 //  - the job worker's link page and its status and note APIs (one lot, by its secret token)
 //  - Meta's webhook (checks its own signature) and the daily cron (checks its own secret)
-//  - the sign-in page and the Google sign-in steps themselves
+//  - the sign-in page, the privacy page, and the Google sign-in steps themselves
 const OPEN = [
   /^\/s\/[^/]+$/, /^\/api\/lots\/[0-9a-f]{16}(\/note)?$/, /^\/api\/whatsapp\/webhook$/, /^\/api\/cron\/[^/]+$/,
-  /^\/login$/, /^\/api\/auth\/(google|google\/callback|logout)$/,
+  /^\/login$/, /^\/privacy$/, /^\/api\/auth\/(google|google\/callback|logout)$/,
 ];
 export const isOpenPath = (pathname: string) => OPEN.some((re) => re.test(pathname));
 

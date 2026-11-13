@@ -7,7 +7,7 @@ const cfg = { clientId: "cid.apps.googleusercontent.com", secret: "s3cret", emai
 test("open without signing in: job worker pages, Meta/cron, and the sign-in steps only", () => {
   for (const open of [
     "/s/0123456789abcdef", "/api/lots/0123456789abcdef", "/api/lots/0123456789abcdef/note", "/api/whatsapp/webhook", "/api/cron/remind",
-    "/login", "/api/auth/google", "/api/auth/google/callback", "/api/auth/logout",
+    "/login", "/privacy", "/api/auth/google", "/api/auth/google/callback", "/api/auth/logout",
   ]) {
     assert.equal(isOpenPath(open), true, open);
   }
