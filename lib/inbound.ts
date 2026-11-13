@@ -46,6 +46,7 @@ export type Resolved = { kind: "lot"; lot: Lot } | { kind: "ask"; lots: Lot[] } 
 // Which lot is this reply about? Only this sender's lots that aren't Dispatched yet.
 // One lot: that one. Several: the one named by its quantity, else the most recently reminded, else ask.
 export function resolveLot(lots: Lot[], phone: string, rest: string): Resolved {
+  if (!phone) return { kind: "none" }; // a sender we can't read must never match lots that have no number
   const open = lots.filter((l) => l.phone === phone && l.status !== "Dispatched");
   if (!open.length) return { kind: "none" };
   if (open.length === 1) return { kind: "lot", lot: open[0] };

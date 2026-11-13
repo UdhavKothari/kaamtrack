@@ -29,6 +29,7 @@ test("which lot: only this sender's open lots; one lot wins; quantity names it; 
   const a = mk({ quantity: 1200 }), b = mk({ quantity: 800 }), other = mk({ phone: "919000000001" }), done = mk({ status: "Dispatched" });
   assert.equal(resolveLot([other], PHONE, "").kind, "none");
   assert.equal(resolveLot([done], PHONE, "").kind, "none");
+  assert.equal(resolveLot([mk({ phone: "" })], "", "").kind, "none", "an unreadable sender never matches a lot with no number");
   assert.equal((resolveLot([a, other, done], PHONE, "") as { lot: Lot }).lot, a);
   assert.equal((resolveLot([a, b], PHONE, "800") as { lot: Lot }).lot, b);
   const aR = { ...a, last_reminded_at: "2026-11-01T04:00:00.000Z" }, bR = { ...b, last_reminded_at: "2026-11-02T04:00:00.000Z" };
